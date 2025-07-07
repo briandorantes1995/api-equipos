@@ -22,6 +22,12 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Fatalf("Error loading the .env file: %v", err)
 	}
+
+	FRONT_END := os.Getenv("FRONT_END")
+	if FRONT_END == "" {
+		log.Fatal("FRONT_END no está definida en el archivo .env")
+	}
+
 	supabaseUrl := os.Getenv("SUPABASE_URL")
 	supabaseKey := os.Getenv("SUPABASE_KEY")
 	supabaseClient := supabase.CreateClient(supabaseUrl, supabaseKey)
@@ -34,43 +40,31 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"message":"Hello from a public endpoint! You don't need to be authenticated to see this."}`))
 	}))
-	//Mostrar Articulos
-	router.Handle("/api/articulos", middleware.EnsureValidToken()(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// CORS Headers (antes de cualquier validación)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization")
-			w.Header().Set("Content-Type", "application/json")
 
-			token, ok := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
-			if !ok || token.CustomClaims == nil {
-				http.Error(w, `{"message":"Invalid token claims"}`, http.StatusUnauthorized)
-				return
-			}
-			claims := token.CustomClaims.(*middleware.CustomClaims)
-			if !claims.HasPermission("read") {
-				http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
-				return
-			}
+	// Mostrar Artículos (sin autenticación)
+	router.Handle("/api/articulos", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// CORS Headers (antes de cualquier respuesta)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+		w.Header().Set("Content-Type", "application/json")
 
-			var result []map[string]interface{}
-			err := supabaseClient.DB.From("articulos").Select("*").Execute(&result)
-			if err != nil {
-				http.Error(w, `{"error":"Error de conexión o tabla no existe: `+err.Error()+`"}`, http.StatusInternalServerError)
-				return
-			}
+		var result []map[string]interface{}
+		err := supabaseClient.DB.From("articulos").Select("*").Execute(&result)
+		if err != nil {
+			http.Error(w, `{"error":"Error de conexión o tabla no existe: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
 
-			jsonResp, err := json.Marshal(result)
-			if err != nil {
-				http.Error(w, `{"error":"Error al convertir resultado a JSON"}`, http.StatusInternalServerError)
-				return
-			}
+		jsonResp, err := json.Marshal(result)
+		if err != nil {
+			http.Error(w, `{"error":"Error al convertir resultado a JSON"}`, http.StatusInternalServerError)
+			return
+		}
 
-			w.WriteHeader(http.StatusOK)
-			w.Write(jsonResp)
-		}),
-	))
+		w.WriteHeader(http.StatusOK)
+		w.Write(jsonResp)
+	}))
 
 	//Insertar Articulos
 	router.Handle("/api/articulos/agregar", middleware.EnsureValidToken()(
@@ -80,7 +74,7 @@ func main() {
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Content-Type", "application/json")
 
@@ -117,7 +111,7 @@ func main() {
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Content-Type", "application/json")
 
@@ -161,7 +155,7 @@ func main() {
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Content-Type", "application/json")
 
@@ -190,35 +184,26 @@ func main() {
 		}),
 	))
 
-	// Mostrar Categorías
-	router.Handle("/api/categorias", middleware.EnsureValidToken()(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet {
-				http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-				return
-			}
+	// Mostrar Categorías (sin autenticación)
+	router.Handle("/api/categorias", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+			return
+		}
 
-			// CORS headers
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization")
-			w.Header().Set("Content-Type", "application/json")
+		// CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+		w.Header().Set("Content-Type", "application/json")
 
-			token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
-			claims := token.CustomClaims.(*middleware.CustomClaims)
-			if !claims.HasPermission("read") {
-				http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
-				return
-			}
-
-			var result []map[string]interface{}
-			err := supabaseClient.DB.From("categorias").Select("*").Execute(&result)
-			if err != nil {
-				http.Error(w, `{"error":"Error al obtener categorías: `+err.Error()+`"}`, http.StatusInternalServerError)
-				return
-			}
-			json.NewEncoder(w).Encode(result)
-		}),
-	))
+		var result []map[string]interface{}
+		err := supabaseClient.DB.From("categorias").Select("*").Execute(&result)
+		if err != nil {
+			http.Error(w, `{"error":"Error al obtener categorías: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(result)
+	}))
 
 	// Insertar Categorías
 	router.Handle("/api/categorias/agregar", middleware.EnsureValidToken()(
@@ -228,7 +213,7 @@ func main() {
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Content-Type", "application/json")
 
@@ -263,7 +248,7 @@ func main() {
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Content-Type", "application/json")
 
@@ -306,7 +291,7 @@ func main() {
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization")
 			w.Header().Set("Content-Type", "application/json")
 
