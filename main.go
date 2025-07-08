@@ -19,8 +19,12 @@ import (
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatalf("Error loading the .env file: %v", err)
+	// Solo intenta cargar el archivo .env si no estás en producción
+	env := os.Getenv("ENVIRONMENT")
+	if env != "production" {
+		if err := godotenv.Load(); err != nil {
+			log.Printf("No .env file found, continuing without it")
+		}
 	}
 
 	FRONT_END := os.Getenv("FRONT_END")
@@ -320,7 +324,7 @@ func main() {
 		}),
 	))
 
-	log.Print("Server listening on http://localhost:3010")
+	log.Print("Server listening on http://0.0.0.0:3010")
 	if err := http.ListenAndServe("0.0.0.0:3010", router); err != nil {
 		log.Fatalf("There was an error with the http server: %v", err)
 	}
