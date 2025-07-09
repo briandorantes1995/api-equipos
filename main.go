@@ -28,21 +28,20 @@ type CategoryDetail struct {
 	Nombre string `json:"nombre,omitempty"`
 }
 
-// ArticleResponse representa la estructura de un artículo con el nombre de su categoría
 type ArticleResponse struct {
-	ID           int             `json:"id,omitempty"`
-	CreatedAt    string          `json:"created_at,omitempty"`
-	CategoriaID  int             `json:"categoria_id,omitempty"`
-	CodigoBarras string          `json:"codigo_barras,omitempty"`
-	Costo        float64         `json:"costo,omitempty"`
-	Descripcion  string          `json:"descripcion,omitempty"`
-	Imagen       string          `json:"imagen,omitempty"`
-	Inventario   int             `json:"inventario,omitempty"`
-	Nombre       string          `json:"nombre,omitempty"`
-	PrecioVenta  float64         `json:"precio_venta,omitempty"`
-	Proveedor    string          `json:"proveedor,omitempty"`
-	SKU          string          `json:"sku,omitempty"`
-	Categoria    *CategoryDetail `json:"categoria,omitempty"` // Objeto de categoría anidado
+	ID              int     `json:"id,omitempty"`
+	CreatedAt       string  `json:"created_at,omitempty"`
+	CategoriaID     int     `json:"categoria_id,omitempty"`
+	CodigoBarras    string  `json:"codigo_barras,omitempty"`
+	Costo           float64 `json:"costo,omitempty"`
+	Descripcion     string  `json:"descripcion,omitempty"`
+	Imagen          string  `json:"imagen,omitempty"`
+	Inventario      int     `json:"inventario,omitempty"`
+	Nombre          string  `json:"nombre,omitempty"`
+	PrecioVenta     float64 `json:"precio_venta,omitempty"`
+	Proveedor       string  `json:"proveedor,omitempty"`
+	SKU             string  `json:"sku,omitempty"`
+	CategoriaNombre string  `json:"categoria_nombre,omitempty"` // Campo para el nombre de la categoría
 }
 
 func main() {
@@ -99,15 +98,55 @@ func main() {
 		}
 		w.Header().Set("Content-Type", "application/json")
 
-		var result []ArticleResponse // Usa la nueva struct ArticleResponse
-		// CAMBIO CLAVE: Elimina 'created_at' de la selección explícita
-		err := supabaseClient.DB.From("articulos").Select("id,categoria_id,codigo_barras,costo,descripcion,imagen,inventario,nombre,precio_venta,proveedor,sku,categorias(nombre)").Execute(&result)
+		// 1. Obtener todos los artículos
+		var articlesRaw []map[string]interface{}
+		err := supabaseClient.DB.From("articulos").Select("*").Execute(&articlesRaw)
 		if err != nil {
-			http.Error(w, `{"error":"Error de conexión o tabla no existe: `+err.Error()+`"}`, http.StatusInternalServerError)
+			http.Error(w, `{"error":"Error al obtener artículos: `+err.Error()+`"}`, http.StatusInternalServerError)
 			return
 		}
 
-		jsonResp, err := json.Marshal(result)
+		// 2. Obtener todas las categorías
+		var categoriesRaw []map[string]interface{}
+		err = supabaseClient.DB.From("categorias").Select("id,nombre").Execute(&categoriesRaw)
+		if err != nil {
+			http.Error(w, `{"error":"Error al obtener categorías: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		// 3. Crear un mapa para buscar nombres de categorías por ID
+		categoryMap := make(map[int]string)
+		for _, cat := range categoriesRaw {
+			if id, ok := cat["id"].(float64); ok { // Supabase devuelve números como float64
+				if name, ok := cat["nombre"].(string); ok {
+					categoryMap[int(id)] = name
+				}
+			}
+		}
+
+		// 4. Transformar los artículos a ArticleResponse y añadir el nombre de la categoría
+		var articlesResponse []ArticleResponse
+		for _, articleRaw := range articlesRaw {
+			var article ArticleResponse
+			// Marshal y Unmarshal para convertir map[string]interface{} a ArticleResponse
+			// Esto es un truco para mapear los campos automáticamente
+			articleBytes, _ := json.Marshal(articleRaw)
+			json.Unmarshal(articleBytes, &article)
+
+			// Añadir el nombre de la categoría
+			if catID, ok := articleRaw["categoria_id"].(float64); ok { // Supabase devuelve IDs como float64
+				if categoryName, found := categoryMap[int(catID)]; found {
+					article.CategoriaNombre = categoryName
+				} else {
+					article.CategoriaNombre = "Categoría Desconocida" // O un valor por defecto
+				}
+			} else {
+				article.CategoriaNombre = "Sin Categoría" // Si categoria_id no es un número
+			}
+			articlesResponse = append(articlesResponse, article)
+		}
+
+		jsonResp, err := json.Marshal(articlesResponse)
 		if err != nil {
 			http.Error(w, `{"error":"Error al convertir resultado a JSON"}`, http.StatusInternalServerError)
 			return
