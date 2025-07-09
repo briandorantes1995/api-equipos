@@ -1,6 +1,5 @@
 package main
 
-// main.go
 import (
 	"encoding/json"
 	"log"
@@ -9,14 +8,21 @@ import (
 	"strconv"
 	"strings"
 
+	// Necesario para Access-Control-Max-Age
 	"github.com/nedpals/supabase-go"
 
-	"equiposmedicos/middleware"
+	"equiposmedicos/middleware" // Tu paquete de middleware
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware/v2"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 	"github.com/joho/godotenv"
 )
+
+// FRONT_END debe ser definido globalmente
+var FRONT_END string
+
+// supabaseClient debe ser definido globalmente
+var supabaseClient *supabase.Client
 
 func main() {
 	// Solo intenta cargar el archivo .env si no estás en producción
@@ -27,19 +33,45 @@ func main() {
 		}
 	}
 
-	FRONT_END := os.Getenv("FRONT_END")
+	FRONT_END = os.Getenv("FRONT_END")
 	if FRONT_END == "" {
 		log.Fatal("FRONT_END no está definida en el archivo .env")
 	}
 
 	supabaseUrl := os.Getenv("SUPABASE_URL")
 	supabaseKey := os.Getenv("SUPABASE_KEY")
-	supabaseClient := supabase.CreateClient(supabaseUrl, supabaseKey)
+	supabaseClient = supabase.CreateClient(supabaseUrl, supabaseKey)
 
 	router := http.NewServeMux()
 
-	// This route is always accessible.
+	// Define un middleware CORS reutilizable para http.ServeMux
+	// Este middleware se encargará de las solicitudes OPTIONS y de establecer las cabeceras CORS
+	corsHandler := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// **LOG DE DEPURACIÓN:** Ver qué método y ruta recibe el corsHandler
+			log.Printf("CORS Handler received request for %s with method: %s", r.URL.Path, r.Method)
+
+			// Establece las cabeceras CORS para todas las respuestas
+			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS") // Métodos permitidos
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")     // Cabeceras permitidas
+			w.Header().Set("Access-Control-Allow-Credentials", "true")                        // Si usas credenciales (cookies, auth headers)
+			w.Header().Set("Access-Control-Max-Age", "86400")                                 // Cachea la preflight por 24 horas
+
+			// Si la solicitud es OPTIONS (preflight), responde con 200 OK y termina
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			// Pasa la solicitud al siguiente manejador en la cadena
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	// Rutas públicas
 	router.Handle("/api/public", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Handler /api/public received method: %s", r.Method) // LOG
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"message":"Hello from a public endpoint! You don't need to be authenticated to see this."}`))
@@ -47,10 +79,11 @@ func main() {
 
 	// Mostrar Artículos (sin autenticación)
 	router.Handle("/api/articulos", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// CORS Headers (antes de cualquier respuesta)
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+		log.Printf("Handler /api/articulos received method: %s", r.Method) // LOG
+		if r.Method != http.MethodGet {                                    // Mantiene la verificación de método
+			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 
 		var result []map[string]interface{}
@@ -70,16 +103,15 @@ func main() {
 		w.Write(jsonResp)
 	}))
 
-	//Insertar Articulos
+	// Rutas protegidas
 	router.Handle("/api/articulos/agregar", middleware.EnsureValidToken()(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost {
+			log.Printf("Handler /api/articulos/agregar received method: %s", r.Method) // LOG
+			if r.Method != http.MethodPost {                                           // Mantiene la verificación de método
 				http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Content-Type", "application/json")
 
 			token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
@@ -110,13 +142,12 @@ func main() {
 	// Actualizar Articulos
 	router.Handle("/api/articulos/actualizar", middleware.EnsureValidToken()(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPut {
+			log.Printf("Handler /api/articulos/actualizar received method: %s", r.Method) // LOG
+			if r.Method != http.MethodPut {                                               // Mantiene la verificación de método
 				http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Content-Type", "application/json")
 
 			token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
@@ -126,7 +157,7 @@ func main() {
 				return
 			}
 
-			idStr := strings.TrimPrefix(r.URL.Path, "/api/articulos/")
+			idStr := strings.TrimPrefix(r.URL.Path, "/api/articulos/actualizar/") // Ajusta la extracción del ID si la URL no es /api/articulos/actualizar/{id}
 			id, err := strconv.Atoi(idStr)
 			if err != nil {
 				http.Error(w, `{"error":"ID inválido"}`, http.StatusBadRequest)
@@ -152,15 +183,14 @@ func main() {
 	))
 
 	// Eliminar Articulos
-	router.Handle("/api/articulos/eliminar", middleware.EnsureValidToken()(
+	router.Handle("/api/articulos/eliminar/", middleware.EnsureValidToken()( // La barra al final es importante para http.ServeMux si esperas un ID
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodDelete {
+			log.Printf("Handler /api/articulos/eliminar received method: %s", r.Method) // LOG
+			if r.Method != http.MethodDelete {                                          // Mantiene la verificación de método
 				http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Content-Type", "application/json")
 
 			token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
@@ -170,7 +200,7 @@ func main() {
 				return
 			}
 
-			idStr := strings.TrimPrefix(r.URL.Path, "/api/articulos/")
+			idStr := strings.TrimPrefix(r.URL.Path, "/api/articulos/eliminar/")
 			id, err := strconv.Atoi(idStr)
 			if err != nil {
 				http.Error(w, `{"error":"ID inválido"}`, http.StatusBadRequest)
@@ -190,14 +220,12 @@ func main() {
 
 	// Mostrar Categorías (sin autenticación)
 	router.Handle("/api/categorias", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
+		log.Printf("Handler /api/categorias received method: %s", r.Method) // LOG
+		if r.Method != http.MethodGet {                                     // Mantiene la verificación de método
 			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
 			return
 		}
 
-		// CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization")
 		w.Header().Set("Content-Type", "application/json")
 
 		var result []map[string]interface{}
@@ -212,13 +240,12 @@ func main() {
 	// Insertar Categorías
 	router.Handle("/api/categorias/agregar", middleware.EnsureValidToken()(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost {
+			log.Printf("Handler /api/categorias/agregar received method: %s", r.Method) // LOG
+			if r.Method != http.MethodPost {                                            // Mantiene la verificación de método
 				http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Content-Type", "application/json")
 
 			token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
@@ -245,15 +272,14 @@ func main() {
 	))
 
 	// Actualizar Categorías
-	router.Handle("/api/categorias/actualizar", middleware.EnsureValidToken()(
+	router.Handle("/api/categorias/actualizar/", middleware.EnsureValidToken()( // La barra al final es importante
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPut {
+			log.Printf("Handler /api/categorias/actualizar received method: %s", r.Method) // LOG
+			if r.Method != http.MethodPut {                                                // Mantiene la verificación de método
 				http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			w.Header().Set("Content-Type", "application/json")
 
 			token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
@@ -288,15 +314,14 @@ func main() {
 	))
 
 	// Eliminar Categorías
-	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(
+	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()( // La barra al final es importante
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodDelete {
+			log.Printf("Handler /api/categorias/eliminar received method: %s", r.Method) // LOG
+			if r.Method != http.MethodDelete {                                           // Mantiene la verificación de método
 				http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
 				return
 			}
 
-			w.Header().Set("Access-Control-Allow-Origin", FRONT_END)
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization")
 			w.Header().Set("Content-Type", "application/json")
 
 			token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
@@ -317,7 +342,7 @@ func main() {
 			var result map[string]interface{}
 			err = supabaseClient.DB.From("categorias").Delete().Eq("id", strconv.Itoa(id)).Execute(&result)
 			if err != nil {
-				http.Error(w, `{"error":"Error al eliminar categoría: `+err.Error()+`"}`, http.StatusInternalServerError)
+				http.Error(w, `{"error":"Error al eliminar: `+err.Error()+`"}`, http.StatusInternalServerError)
 				return
 			}
 			json.NewEncoder(w).Encode(result)
@@ -325,8 +350,8 @@ func main() {
 	))
 
 	log.Print("Server listening on http://0.0.0.0:3010")
-	if err := http.ListenAndServe("0.0.0.0:3010", router); err != nil {
+	// Aplica el corsHandler globalmente al router
+	if err := http.ListenAndServe("0.0.0.0:3010", corsHandler(router)); err != nil {
 		log.Fatalf("There was an error with the http server: %v", err)
 	}
-
 }

@@ -67,7 +67,13 @@ func EnsureValidToken() func(next http.Handler) http.Handler {
 	)
 
 	return func(next http.Handler) http.Handler {
-		return middleware.CheckJWT(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+			middleware.CheckJWT(next).ServeHTTP(w, r)
+		})
 	}
 }
 
