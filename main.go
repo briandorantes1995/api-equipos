@@ -156,6 +156,61 @@ func main() {
 		w.Write(jsonResp)
 	})
 
+	// Handler para /api/articulos/{id} (GET)
+
+	handleGetArticuloPorID := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		// Extraer ID desde la URL
+		idStr := strings.TrimPrefix(r.URL.Path, "/api/articulos/")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			http.Error(w, `{"error":"ID inválido"}`, http.StatusBadRequest)
+			return
+		}
+
+		// Consultar el artículo por ID
+		var articuloRaw []map[string]interface{}
+		err = supabaseClient.DB.From("articulos").Select("*").Eq("id", strconv.Itoa(id)).Execute(&articuloRaw)
+		if err != nil || len(articuloRaw) == 0 {
+			http.Error(w, `{"error":"Artículo no encontrado"}`, http.StatusNotFound)
+			return
+		}
+
+		// Obtener el nombre de la categoría
+		nombreCategoria := "Sin Categoría"
+		if catID, ok := articuloRaw[0]["categoria_id"].(float64); ok {
+			var categoria []map[string]interface{}
+			err = supabaseClient.DB.From("categorias").Select("nombre").Eq("id", strconv.Itoa(int(catID))).Execute(&categoria)
+			if err == nil && len(categoria) > 0 {
+				if nombre, ok := categoria[0]["nombre"].(string); ok {
+					nombreCategoria = nombre
+				}
+			}
+		}
+
+		var articulo ArticleResponse
+		articleBytes, _ := json.Marshal(articuloRaw[0])
+		json.Unmarshal(articleBytes, &articulo)
+
+		articulo.CategoriaNombre = nombreCategoria
+
+		// Enviar JSON de respuesta
+		resp, err := json.Marshal(articulo)
+		if err != nil {
+			http.Error(w, `{"error":"Error al generar JSON"}`, http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Write(resp)
+	})
+
 	// Handler para /api/articulos/agregar (POST)
 	handleAgregarArticulo := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -402,9 +457,84 @@ func main() {
 		}
 	})
 
+	handleBuscarArticulos := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		termino := strings.ToLower(r.URL.Query().Get("busqueda"))
+		if termino == "" {
+			http.Error(w, `{"error":"Parámetro 'busqueda' obligatorio"}`, http.StatusBadRequest)
+			return
+		}
+
+		var articlesRaw []map[string]interface{}
+		err := supabaseClient.DB.From("articulos").Select("*").Execute(&articlesRaw)
+		if err != nil {
+			http.Error(w, `{"error":"Error al obtener artículos: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		// Obtener categorías para mapear id->nombre
+		var categoriesRaw []map[string]interface{}
+		err = supabaseClient.DB.From("categorias").Select("id,nombre").Execute(&categoriesRaw)
+		if err != nil {
+			http.Error(w, `{"error":"Error al obtener categorías: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+		categoryMap := make(map[int]string)
+		for _, cat := range categoriesRaw {
+			if id, ok := cat["id"].(float64); ok {
+				if name, ok := cat["nombre"].(string); ok {
+					categoryMap[int(id)] = name
+				}
+			}
+		}
+
+		// Filtrar manualmente por nombre, proveedor o categoria_nombre
+		var filtered []ArticleResponse
+		for _, art := range articlesRaw {
+			nombre := strings.ToLower(art["nombre"].(string))
+			proveedor, _ := art["proveedor"].(string)
+			proveedor = strings.ToLower(proveedor)
+			categoriaNombre := ""
+			if catIDf, ok := art["categoria_id"].(float64); ok {
+				categoriaNombre = strings.ToLower(categoryMap[int(catIDf)])
+			}
+
+			if strings.Contains(nombre, termino) ||
+				strings.Contains(proveedor, termino) ||
+				strings.Contains(categoriaNombre, termino) {
+
+				var article ArticleResponse
+				bytesArt, _ := json.Marshal(art)
+				json.Unmarshal(bytesArt, &article)
+				if catIDf, ok := art["categoria_id"].(float64); ok {
+					article.CategoriaNombre = categoryMap[int(catIDf)]
+				} else {
+					article.CategoriaNombre = "Sin Categoría"
+				}
+				filtered = append(filtered, article)
+			}
+		}
+
+		jsonResp, err := json.Marshal(filtered)
+		if err != nil {
+			http.Error(w, `{"error":"Error al convertir a JSON: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Write(jsonResp)
+	})
+
 	// Registro de rutas con http.ServeMux
 	router.Handle("/api/public", handlePublic)
 	router.Handle("/api/articulos", handleGetArticulos)
+	router.Handle("/api/articulos/", handleGetArticuloPorID)
 	router.Handle("/api/articulos/agregar", middleware.EnsureValidToken()(handleAgregarArticulo))
 	router.Handle("/api/articulos/actualizar/", middleware.EnsureValidToken()(handleActualizarArticulo))
 	router.Handle("/api/articulos/eliminar/", middleware.EnsureValidToken()(handleEliminarArticulo))
@@ -412,9 +542,11 @@ func main() {
 	router.Handle("/api/categorias/agregar", middleware.EnsureValidToken()(handleAgregarCategoria))
 	router.Handle("/api/categorias/actualizar/", middleware.EnsureValidToken()(handleActualizarCategoria))
 	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(handleEliminarCategoria))
+	router.Handle("/api/articulos/buscar", handleBuscarArticulos)
 
 	log.Print("Server listening on http://0.0.0.0:3010")
 	if err := http.ListenAndServe("0.0.0.0:3010", corsHandler(router)); err != nil {
 		log.Fatalf("There was an error with the http server: %v", err)
 	}
+
 }
