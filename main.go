@@ -590,8 +590,8 @@ func main() {
 		var inventarios []InventarioArticulo
 
 		err := supabaseClient.DB.
-			From("articulos").
-			Select("id, nombre, inventarios:cantidad_actual").
+			From("inventarios").
+			Select("articulos:id,articulos:nombre,cantidad_actual").
 			Execute(&inventarios)
 		if err != nil {
 			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
