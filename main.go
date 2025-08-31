@@ -572,7 +572,18 @@ func main() {
 	})
 
 	handleReporteInventario := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
+		token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+		claims := token.CustomClaims.(*middleware.CustomClaims)
+		if !claims.HasPermission("read") { // cambiamos a "read" porque es un reporte
+			http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+			return
+		}
 
 		var inventarios []InventarioArticulo
 		sql := `
@@ -604,7 +615,6 @@ func main() {
 	router.Handle("/api/categorias/actualizar/", middleware.EnsureValidToken()(handleActualizarCategoria))
 	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(handleEliminarCategoria))
 	router.Handle("/api/inventario", handleReporteInventario)
-	
 
 	log.Print("Server listening on http://0.0.0.0:3010")
 	if err := http.ListenAndServe("0.0.0.0:3010", corsHandler(router)); err != nil {
