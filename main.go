@@ -227,18 +227,52 @@ func main() {
 			return
 		}
 
-		var results []map[string]interface{} // Usamos directamente slice de mapas
+		// Extraemos inventario inicial y usuario_id del payload si viene
+		cantidadInicial, ok := nuevo["inventario"].(float64)
+		if !ok {
+			cantidadInicial = 0 // default
+		}
+		nombreUsuario, _ := nuevo["name"].(float64)
+		delete(nuevo, "inventario")
+		delete(nuevo, "name")
+
+		// 1️⃣ Insertar artículo
+		var results []map[string]interface{}
 		err = supabaseClient.DB.From("articulos").Insert(nuevo).Execute(&results)
-		if err != nil {
-			http.Error(w, `{"error":"Error al insertar: `+err.Error()+`"}`, http.StatusInternalServerError)
+		if err != nil || len(results) == 0 {
+			http.Error(w, `{"error":"Error al insertar artículo: `+err.Error()+`"}`, http.StatusInternalServerError)
 			return
 		}
 
-		if len(results) > 0 {
-			json.NewEncoder(w).Encode(results[0])
-		} else {
-			http.Error(w, `{"message":"Inserción exitosa, pero no se recibieron datos de respuesta."}`, http.StatusOK)
+		articuloID := results[0]["id"].(float64) // id del artículo insertado
+
+		// 2️⃣ Insertar inventario inicial
+		inventario := map[string]interface{}{
+			"articulo_id":     articuloID,
+			"cantidad_actual": cantidadInicial,
 		}
+		err = supabaseClient.DB.From("inventarios").Insert(inventario).Execute(nil)
+		if err != nil {
+			http.Error(w, `{"error":"Error al insertar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		// 3️⃣ Registrar movimiento inicial
+		movimiento := map[string]interface{}{
+			"articulo_id":     articuloID,
+			"tipo_movimiento": "alta",
+			"cantidad":        cantidadInicial,
+			"motivo":          "Inventario inicial",
+			"usuario_nombre":  nombreUsuario,
+		}
+		err = supabaseClient.DB.From("movimientos_inventario").Insert(movimiento).Execute(nil)
+		if err != nil {
+			http.Error(w, `{"error":"Error al registrar movimiento: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		// Responder con el artículo creado
+		json.NewEncoder(w).Encode(results[0])
 	})
 
 	// Handler para /api/articulos/actualizar (PUT)
