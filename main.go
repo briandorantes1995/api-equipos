@@ -578,22 +578,21 @@ func main() {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+
+		// Validación de token y permisos
 		token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
 		claims := token.CustomClaims.(*middleware.CustomClaims)
-		if !claims.HasPermission("read") { // cambiamos a "read" porque es un reporte
+		if !claims.HasPermission("read") {
 			http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
 			return
 		}
 
 		var inventarios []InventarioArticulo
-		sql := `
-        SELECT a.id, a.nombre, i.cantidad_actual
-        FROM articulos a
-        LEFT JOIN inventarios i ON a.id = i.articulo_id;
-    `
-		err := supabaseClient.DB.Rpc("sql", map[string]interface{}{
-			"query": sql,
-		}).Execute(&inventarios)
+
+		err := supabaseClient.DB.
+			From("articulos").
+			Select("id, nombre, inventarios:cantidad_actual").
+			Execute(&inventarios)
 		if err != nil {
 			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
 			return
