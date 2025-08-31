@@ -41,7 +41,13 @@ type ArticleResponse struct {
 	PrecioVenta     float64 `json:"precio_venta,omitempty"`
 	Proveedor       string  `json:"proveedor,omitempty"`
 	SKU             string  `json:"sku,omitempty"`
-	CategoriaNombre string  `json:"categoria_nombre,omitempty"` // Campo para el nombre de la categoría
+	CategoriaNombre string  `json:"categoria_nombre,omitempty"`
+}
+
+type InventarioArticulo struct {
+	ID             int     `json:"id"`
+	Nombre         string  `json:"nombre"`
+	CantidadActual float64 `json:"cantidad_actual"`
 }
 
 func main() {
@@ -565,6 +571,26 @@ func main() {
 		w.Write(jsonResp)
 	})
 
+	handleReporteInventario := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var inventarios []InventarioArticulo
+		sql := `
+        SELECT a.id, a.nombre, i.cantidad_actual
+        FROM articulos a
+        LEFT JOIN inventarios i ON a.id = i.articulo_id;
+    `
+		err := supabaseClient.DB.Rpc("sql", map[string]interface{}{
+			"query": sql,
+		}).Execute(&inventarios)
+		if err != nil {
+			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(inventarios)
+	})
+
 	// Registro de rutas con http.ServeMux
 	router.Handle("/api/public", handlePublic)
 	router.Handle("/api/articulos", handleGetArticulos)
@@ -577,6 +603,7 @@ func main() {
 	router.Handle("/api/categorias/actualizar/", middleware.EnsureValidToken()(handleActualizarCategoria))
 	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(handleEliminarCategoria))
 	router.Handle("/api/articulos/buscar", handleBuscarArticulos)
+	router.Handle("/api/articulos/inventario", handleReporteInventario)
 
 	log.Print("Server listening on http://0.0.0.0:3010")
 	if err := http.ListenAndServe("0.0.0.0:3010", corsHandler(router)); err != nil {
