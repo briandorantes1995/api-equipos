@@ -614,7 +614,7 @@ func main() {
 	router.Handle("/api/categorias/agregar", middleware.EnsureValidToken()(handleAgregarCategoria))
 	router.Handle("/api/categorias/actualizar/", middleware.EnsureValidToken()(handleActualizarCategoria))
 	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(handleEliminarCategoria))
-	router.Handle("/api/inventario", handleReporteInventario)
+	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(handleReporteInventario))
 
 	log.Print("Server listening on http://0.0.0.0:3010")
 	if err := http.ListenAndServe("0.0.0.0:3010", corsHandler(router)); err != nil {
