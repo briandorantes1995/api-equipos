@@ -591,7 +591,7 @@ func main() {
 
 		err := supabaseClient.DB.
 			From("inventario_view").
-			Select("id, nombre, cantidad_actual").
+			Select("*").
 			Execute(&inventarios)
 		if err != nil {
 			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
