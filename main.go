@@ -61,6 +61,17 @@ type Movimiento struct {
 	Fecha          string  `json:"fecha"`
 }
 
+type MovimientoConNombre struct {
+	ID             int     `json:"id"`
+	ArticuloID     int     `json:"articulo_id"`
+	Nombre         string  `json:"nombre"`
+	TipoMovimiento string  `json:"tipo_movimiento"`
+	Cantidad       float64 `json:"cantidad"`
+	Motivo         string  `json:"motivo"`
+	Fecha          string  `json:"fecha"`
+	UsuarioNombre  string  `json:"usuario_nombre"`
+}
+
 func main() {
 	// Solo intenta cargar el archivo .env si no estás en producción
 	env := os.Getenv("ENVIRONMENT")
@@ -706,7 +717,7 @@ func main() {
 		})
 	})
 
-	// Handler para obtener movimientos
+	// Handler para obtener movimientos con nombre del artículo
 	handleReporteMovimientos := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
@@ -723,13 +734,13 @@ func main() {
 			return
 		}
 
-		var movimientos []Movimiento
+		var movimientos []MovimientoConNombre
 
-		// Traemos todos los movimientos sin orden
+		// Traemos los movimientos y el nombre del artículo relacionado
 		err := supabaseClient.DB.
 			From("movimientos_inventario").
-			Select("*").
-			Execute(&movimientos)
+			Select("*, articulos(nombre)").
+			Execute(&movimientos) // pasamos directamente el slice donde se decodifica
 
 		if err != nil {
 			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
