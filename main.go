@@ -717,7 +717,6 @@ func main() {
 		})
 	})
 
-	// Handler para obtener movimientos con nombre del artículo
 	handleReporteMovimientos := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
@@ -736,11 +735,11 @@ func main() {
 
 		var movimientos []MovimientoConNombre
 
-		// Traemos los movimientos y el nombre del artículo relacionado
+		// Traemos todos los movimientos desde la view
 		err := supabaseClient.DB.
-			From("movimientos_inventario").
-			Select("*, articulos(nombre)").
-			Execute(&movimientos) // pasamos directamente el slice donde se decodifica
+			From("movimientos_con_nombre").
+			Select("*").
+			Execute(&movimientos)
 
 		if err != nil {
 			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
