@@ -611,6 +611,7 @@ func main() {
 		json.NewEncoder(w).Encode(inventarios)
 	})
 
+	// Handler para registrar movimientos y actualizar inventario
 	handleRegistrarMovimiento := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
@@ -670,9 +671,9 @@ func main() {
 
 		// Actualizar inventario según tipo
 		switch movimiento.TipoMovimiento {
-		case "alta", "compra", "agregar":
+		case "alta", "compra", "transferencia_entrada":
 			cantidadActual += movimiento.Cantidad
-		case "venta", "baja", "robo":
+		case "venta", "baja", "robo", "transferencia_salida":
 			cantidadActual -= movimiento.Cantidad
 		default:
 			http.Error(w, `{"error":"Tipo de movimiento desconocido"}`, http.StatusBadRequest)
