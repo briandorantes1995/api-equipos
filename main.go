@@ -64,7 +64,7 @@ type Movimiento struct {
 type MovimientoConNombre struct {
 	ID             int     `json:"id"`
 	ArticuloID     int     `json:"articulo_id"`
-	Nombre         string  `json:"nombre"`
+	NombreArticulo string  `json:"nombre_articulo"`
 	TipoMovimiento string  `json:"tipo_movimiento"`
 	Cantidad       float64 `json:"cantidad"`
 	Motivo         string  `json:"motivo"`
