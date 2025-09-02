@@ -58,6 +58,7 @@ type Movimiento struct {
 	Cantidad       float64 `json:"cantidad"`
 	Motivo         string  `json:"motivo"`
 	UsuarioNombre  string  `json:"usuario_nombre"`
+	Fecha          string  `json:"fecha"`
 }
 
 func main() {
@@ -705,6 +706,39 @@ func main() {
 		})
 	})
 
+	// Handler para obtener movimientos
+	handleReporteMovimientos := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		// Validación de token y permisos
+		token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+		claims := token.CustomClaims.(*middleware.CustomClaims)
+		if !claims.HasPermission("read") {
+			http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+			return
+		}
+
+		var movimientos []Movimiento
+
+		// Traemos todos los movimientos sin orden
+		err := supabaseClient.DB.
+			From("movimientos").
+			Select("*").
+			Execute(&movimientos)
+
+		if err != nil {
+			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(movimientos)
+	})
+
 	// Registro de rutas con http.ServeMux
 	router.Handle("/api/public", handlePublic)
 	router.Handle("/api/articulos", handleGetArticulos)
@@ -719,6 +753,7 @@ func main() {
 	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(handleEliminarCategoria))
 	router.Handle("/api/inventario", middleware.EnsureValidToken()(handleReporteInventario))
 	router.Handle("/api/movimientos/registrar", middleware.EnsureValidToken()(handleRegistrarMovimiento))
+	router.Handle("/api/movimientos", middleware.EnsureValidToken()(handleReporteMovimientos))
 	log.Print("Server listening on http://0.0.0.0:3010")
 	if err := http.ListenAndServe("0.0.0.0:3010", corsHandler(router)); err != nil {
 		log.Fatalf("There was an error with the http server: %v", err)
