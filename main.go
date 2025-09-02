@@ -52,6 +52,14 @@ type InventarioArticulo struct {
 	UltimaActualizacion *time.Time `json:"ultima_actualizacion"`
 }
 
+type Movimiento struct {
+	ArticuloID     int     `json:"articulo_id"`
+	TipoMovimiento string  `json:"tipo_movimiento"`
+	Cantidad       float64 `json:"cantidad"`
+	Motivo         string  `json:"motivo"`
+	UsuarioNombre  string  `json:"usuario_nombre"`
+}
+
 func main() {
 	// Solo intenta cargar el archivo .env si no estás en producción
 	env := os.Getenv("ENVIRONMENT")
@@ -603,6 +611,99 @@ func main() {
 		json.NewEncoder(w).Encode(inventarios)
 	})
 
+	handleRegistrarMovimiento := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		// Validación de token y permisos
+		token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+		claims := token.CustomClaims.(*middleware.CustomClaims)
+		if !claims.HasPermission("write") {
+			http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+			return
+		}
+
+		// Decodificar el movimiento
+		var movimiento Movimiento
+		if err := json.NewDecoder(r.Body).Decode(&movimiento); err != nil {
+			http.Error(w, `{"error":"Error al decodificar JSON: `+err.Error()+`"}`, http.StatusBadRequest)
+			return
+		}
+
+		// Validar campos
+		if movimiento.ArticuloID <= 0 || movimiento.TipoMovimiento == "" || movimiento.Cantidad <= 0 {
+			http.Error(w, `{"error":"Datos del movimiento inválidos"}`, http.StatusBadRequest)
+			return
+		}
+
+		// Registrar movimiento
+		err := supabaseClient.DB.
+			From("movimientos").
+			Insert(movimiento).
+			Execute(nil)
+		if err != nil {
+			http.Error(w, `{"error":"Error al insertar movimiento: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		// Obtener inventario actual
+		var inventarios []InventarioArticulo
+		err = supabaseClient.DB.
+			From("inventarios").
+			Select("*").
+			Eq("articulo_id", strconv.Itoa(movimiento.ArticuloID)).
+			Execute(&inventarios)
+
+		if err != nil {
+			http.Error(w, `{"error":"Error al obtener inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		cantidadActual := 0.0
+		if len(inventarios) > 0 {
+			cantidadActual = inventarios[0].CantidadActual
+		}
+
+		// Actualizar inventario según tipo
+		switch movimiento.TipoMovimiento {
+		case "alta", "compra", "agregar":
+			cantidadActual += movimiento.Cantidad
+		case "venta", "baja", "robo":
+			cantidadActual -= movimiento.Cantidad
+		default:
+			http.Error(w, `{"error":"Tipo de movimiento desconocido"}`, http.StatusBadRequest)
+			return
+		}
+
+		// Upsert en inventario
+		upsert := map[string]interface{}{
+			"articulo_id":          movimiento.ArticuloID,
+			"cantidad_actual":      cantidadActual,
+			"ultima_actualizacion": time.Now(),
+		}
+
+		// Solo un valor de retorno, no dos
+		err = supabaseClient.DB.
+			From("inventarios").
+			Upsert(upsert).
+			Execute(nil)
+		if err != nil {
+			http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		// Respuesta
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":         "Movimiento registrado y inventario actualizado",
+			"articulo_id":     movimiento.ArticuloID,
+			"cantidad_actual": cantidadActual,
+		})
+	})
+
 	// Registro de rutas con http.ServeMux
 	router.Handle("/api/public", handlePublic)
 	router.Handle("/api/articulos", handleGetArticulos)
@@ -616,7 +717,7 @@ func main() {
 	router.Handle("/api/categorias/actualizar/", middleware.EnsureValidToken()(handleActualizarCategoria))
 	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(handleEliminarCategoria))
 	router.Handle("/api/inventario", middleware.EnsureValidToken()(handleReporteInventario))
-
+	router.Handle("/api/movimientos/registrar", middleware.EnsureValidToken()(handleRegistrarMovimiento))
 	log.Print("Server listening on http://0.0.0.0:3010")
 	if err := http.ListenAndServe("0.0.0.0:3010", corsHandler(router)); err != nil {
 		log.Fatalf("There was an error with the http server: %v", err)
