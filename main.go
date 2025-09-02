@@ -644,7 +644,7 @@ func main() {
 
 		// Registrar movimiento
 		err := supabaseClient.DB.
-			From("movimientos").
+			From("movimientos_inventario").
 			Insert(movimiento).
 			Execute(nil)
 		if err != nil {
@@ -727,7 +727,7 @@ func main() {
 
 		// Traemos todos los movimientos sin orden
 		err := supabaseClient.DB.
-			From("movimientos").
+			From("movimientos_inventario").
 			Select("*").
 			Execute(&movimientos)
 
