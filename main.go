@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nedpals/supabase-go"
 
@@ -45,9 +46,10 @@ type ArticleResponse struct {
 }
 
 type InventarioArticulo struct {
-	ID             int     `json:"id"`
-	Nombre         string  `json:"nombre"`
-	CantidadActual float64 `json:"cantidad_actual"`
+	ID                  int       `json:"id"`
+	Nombre              string    `json:"nombre"`
+	CantidadActual      float64   `json:"cantidad_actual"`
+	UltimaActualizacion time.Time `json:"ultima_actualizacion"`
 }
 
 func main() {
