@@ -11,7 +11,7 @@ import (
 
 	"github.com/nedpals/supabase-go"
 
-	"equiposmedicos/middleware" // Tu paquete de middleware
+	"equiposmedicos/middleware"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware/v2"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
@@ -23,54 +23,6 @@ var FRONT_END string
 
 // supabaseClient debe ser definido globalmente
 var supabaseClient *supabase.Client
-
-// CategoryDetail representa el objeto de categoría anidado devuelto por Supabase
-type CategoryDetail struct {
-	Nombre string `json:"nombre,omitempty"`
-}
-
-type ArticleResponse struct {
-	ID              int     `json:"id,omitempty"`
-	CreatedAt       string  `json:"created_at,omitempty"`
-	CategoriaID     int     `json:"categoria_id,omitempty"`
-	CodigoBarras    string  `json:"codigo_barras,omitempty"`
-	Costo           float64 `json:"costo,omitempty"`
-	Descripcion     string  `json:"descripcion,omitempty"`
-	Imagen          string  `json:"imagen,omitempty"`
-	Inventario      int     `json:"inventario,omitempty"`
-	Nombre          string  `json:"nombre,omitempty"`
-	PrecioVenta     float64 `json:"precio_venta,omitempty"`
-	Proveedor       string  `json:"proveedor,omitempty"`
-	SKU             string  `json:"sku,omitempty"`
-	CategoriaNombre string  `json:"categoria_nombre,omitempty"`
-}
-
-type InventarioArticulo struct {
-	ID                  int        `json:"id"`
-	Nombre              string     `json:"nombre"`
-	CantidadActual      float64    `json:"cantidad_actual"`
-	UltimaActualizacion *time.Time `json:"ultima_actualizacion"`
-}
-
-type Movimiento struct {
-	ArticuloID     int     `json:"articulo_id"`
-	TipoMovimiento string  `json:"tipo_movimiento"`
-	Cantidad       float64 `json:"cantidad"`
-	Motivo         string  `json:"motivo"`
-	UsuarioNombre  string  `json:"usuario_nombre"`
-	Fecha          string  `json:"fecha"`
-}
-
-type MovimientoConNombre struct {
-	ID             int     `json:"id"`
-	ArticuloID     int     `json:"articulo_id"`
-	NombreArticulo string  `json:"nombre_articulo"`
-	TipoMovimiento string  `json:"tipo_movimiento"`
-	Cantidad       float64 `json:"cantidad"`
-	Motivo         string  `json:"motivo"`
-	Fecha          string  `json:"fecha"`
-	UsuarioNombre  string  `json:"usuario_nombre"`
-}
 
 func main() {
 	// Solo intenta cargar el archivo .env si no estás en producción
@@ -116,72 +68,6 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"message":"Hello from a public endpoint! You don't need to be authenticated to see this."}`))
-	})
-
-	// Handler para /api/articulos (GET)
-	handleGetArticulos := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-
-		// 1. Obtener todos los artículos
-		var articlesRaw []map[string]interface{}
-		err := supabaseClient.DB.From("articulos").Select("*").Execute(&articlesRaw)
-		if err != nil {
-			http.Error(w, `{"error":"Error al obtener artículos: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-
-		// 2. Obtener todas las categorías
-		var categoriesRaw []map[string]interface{}
-		err = supabaseClient.DB.From("categorias").Select("id,nombre").Execute(&categoriesRaw)
-		if err != nil {
-			http.Error(w, `{"error":"Error al obtener categorías: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-
-		// 3. Crear un mapa para buscar nombres de categorías por ID
-		categoryMap := make(map[int]string)
-		for _, cat := range categoriesRaw {
-			if id, ok := cat["id"].(float64); ok { // Supabase devuelve números como float64
-				if name, ok := cat["nombre"].(string); ok {
-					categoryMap[int(id)] = name
-				}
-			}
-		}
-
-		// 4. Transformar los artículos a ArticleResponse y añadir el nombre de la categoría
-		var articlesResponse []ArticleResponse
-		for _, articleRaw := range articlesRaw {
-			var article ArticleResponse
-			// Marshal y Unmarshal para convertir map[string]interface{} a ArticleResponse
-			// Esto es un truco para mapear los campos automáticamente
-			articleBytes, _ := json.Marshal(articleRaw)
-			json.Unmarshal(articleBytes, &article)
-
-			// Añadir el nombre de la categoría
-			if catID, ok := articleRaw["categoria_id"].(float64); ok { // Supabase devuelve IDs como float64
-				if categoryName, found := categoryMap[int(catID)]; found {
-					article.CategoriaNombre = categoryName
-				} else {
-					article.CategoriaNombre = "Categoría Desconocida" // O un valor por defecto
-				}
-			} else {
-				article.CategoriaNombre = "Sin Categoría" // Si categoria_id no es un número
-			}
-			articlesResponse = append(articlesResponse, article)
-		}
-
-		jsonResp, err := json.Marshal(articlesResponse)
-		if err != nil {
-			http.Error(w, `{"error":"Error al convertir resultado a JSON"}`, http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Write(jsonResp)
 	})
 
 	// Handler para /api/articulos/{id} (GET)
@@ -751,7 +637,7 @@ func main() {
 
 	// Registro de rutas con http.ServeMux
 	router.Handle("/api/public", handlePublic)
-	router.Handle("/api/articulos", handleGetArticulos)
+	router.HandleFunc("/api/articulos", handleGetArticulos)
 	router.Handle("/api/articulos/", handleGetArticuloPorID)
 	router.Handle("/api/articulos/agregar", middleware.EnsureValidToken()(handleAgregarArticulo))
 	router.Handle("/api/articulos/actualizar/", middleware.EnsureValidToken()(handleActualizarArticulo))
