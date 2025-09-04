@@ -280,3 +280,77 @@ func handleEliminarArticulo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"Eliminación exitosa, pero no se recibieron datos de respuesta."}`, http.StatusOK)
 	}
 }
+
+func handleBuscarArticulos(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	termino := strings.ToLower(r.URL.Query().Get("busqueda"))
+	if termino == "" {
+		http.Error(w, `{"error":"Parámetro 'busqueda' obligatorio"}`, http.StatusBadRequest)
+		return
+	}
+
+	var articlesRaw []map[string]interface{}
+	err := supabaseClient.DB.From("articulos").Select("*").Execute(&articlesRaw)
+	if err != nil {
+		http.Error(w, `{"error":"Error al obtener artículos: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Obtener categorías para mapear id->nombre
+	var categoriesRaw []map[string]interface{}
+	err = supabaseClient.DB.From("categorias").Select("id,nombre").Execute(&categoriesRaw)
+	if err != nil {
+		http.Error(w, `{"error":"Error al obtener categorías: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+	categoryMap := make(map[int]string)
+	for _, cat := range categoriesRaw {
+		if id, ok := cat["id"].(float64); ok {
+			if name, ok := cat["nombre"].(string); ok {
+				categoryMap[int(id)] = name
+			}
+		}
+	}
+
+	// Filtrar manualmente por nombre, proveedor o categoria_nombre
+	var filtered []ArticleResponse
+	for _, art := range articlesRaw {
+		nombre := strings.ToLower(art["nombre"].(string))
+		proveedor, _ := art["proveedor"].(string)
+		proveedor = strings.ToLower(proveedor)
+		categoriaNombre := ""
+		if catIDf, ok := art["categoria_id"].(float64); ok {
+			categoriaNombre = strings.ToLower(categoryMap[int(catIDf)])
+		}
+
+		if strings.Contains(nombre, termino) ||
+			strings.Contains(proveedor, termino) ||
+			strings.Contains(categoriaNombre, termino) {
+
+			var article ArticleResponse
+			bytesArt, _ := json.Marshal(art)
+			json.Unmarshal(bytesArt, &article)
+			if catIDf, ok := art["categoria_id"].(float64); ok {
+				article.CategoriaNombre = categoryMap[int(catIDf)]
+			} else {
+				article.CategoriaNombre = "Sin Categoría"
+			}
+			filtered = append(filtered, article)
+		}
+	}
+
+	jsonResp, err := json.Marshal(filtered)
+	if err != nil {
+		http.Error(w, `{"error":"Error al convertir a JSON: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResp)
+}

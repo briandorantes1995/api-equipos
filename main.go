@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/nedpals/supabase-go"
@@ -68,211 +67,6 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"message":"Hello from a public endpoint! You don't need to be authenticated to see this."}`))
-	})
-
-	// Handler para /api/categorias (GET)
-	handleGetCategorias := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		var result []map[string]interface{}
-		err := supabaseClient.DB.From("categorias").Select("*").Execute(&result)
-		if err != nil {
-			http.Error(w, `{"error":"Error de conexión o tabla no existe: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-		json.NewEncoder(w).Encode(result)
-	})
-
-	// Handler para /api/categorias/agregar (POST)
-	handleAgregarCategoria := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		var nueva map[string]interface{}
-		err := json.NewDecoder(r.Body).Decode(&nueva)
-		if err != nil {
-			http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
-			return
-		}
-
-		var results []map[string]interface{} // Usamos directamente slice de mapas
-		err = supabaseClient.DB.From("categorias").Insert(nueva).Execute(&results)
-		if err != nil {
-			http.Error(w, `{"error":"Error al insertar categoría: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-
-		if len(results) > 0 {
-			json.NewEncoder(w).Encode(results[0])
-		} else {
-			http.Error(w, `{"message":"Inserción exitosa, pero no se recibieron datos de respuesta."}`, http.StatusOK)
-		}
-	})
-
-	// Handler para /api/categorias/actualizar (PUT)
-	handleActualizarCategoria := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut {
-			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
-		claims := token.CustomClaims.(*middleware.CustomClaims)
-		if !claims.HasPermission("update") {
-			http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
-			return
-		}
-
-		idStr := strings.TrimPrefix(r.URL.Path, "/api/categorias/actualizar/")
-		var id int
-		var err error // Declarar err aquí
-		id, err = strconv.Atoi(idStr)
-		if err != nil {
-			http.Error(w, `{"error":"ID inválido"}`, http.StatusBadRequest)
-			return
-		}
-
-		var datos map[string]interface{}
-		err = json.NewDecoder(r.Body).Decode(&datos)
-		if err != nil {
-			http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
-			return
-		}
-
-		var results []map[string]interface{} // Usamos directamente slice de mapas
-		err = supabaseClient.DB.From("categorias").Update(datos).Eq("id", strconv.Itoa(id)).Execute(&results)
-		if err != nil {
-			http.Error(w, `{"error":"Error al actualizar en Supabase: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-		if len(results) > 0 {
-			json.NewEncoder(w).Encode(results[0])
-		} else {
-			http.Error(w, `{"message":"Actualización exitosa, pero no se recibieron datos de respuesta."}`, http.StatusOK)
-		}
-	})
-
-	// Handler para /api/categorias/eliminar (DELETE)
-	handleEliminarCategoria := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete {
-			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
-		claims := token.CustomClaims.(*middleware.CustomClaims)
-		if !claims.HasPermission("delete") {
-			http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
-			return
-		}
-
-		idStr := strings.TrimPrefix(r.URL.Path, "/api/categorias/eliminar/")
-		var id int
-		var err error // Declarar err aquí
-		id, err = strconv.Atoi(idStr)
-		if err != nil {
-			http.Error(w, `{"error":"ID inválido"}`, http.StatusBadRequest)
-			return
-		}
-
-		var results []map[string]interface{} // Usamos directamente slice de mapas
-		err = supabaseClient.DB.From("categorias").Delete().Eq("id", strconv.Itoa(id)).Execute(&results)
-		if err != nil {
-			http.Error(w, `{"error":"Error al eliminar: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-		if len(results) > 0 {
-			json.NewEncoder(w).Encode(results[0])
-		} else {
-			http.Error(w, `{"message":"Eliminación exitosa, pero no se recibieron datos de respuesta."}`, http.StatusOK)
-		}
-	})
-
-	handleBuscarArticulos := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		termino := strings.ToLower(r.URL.Query().Get("busqueda"))
-		if termino == "" {
-			http.Error(w, `{"error":"Parámetro 'busqueda' obligatorio"}`, http.StatusBadRequest)
-			return
-		}
-
-		var articlesRaw []map[string]interface{}
-		err := supabaseClient.DB.From("articulos").Select("*").Execute(&articlesRaw)
-		if err != nil {
-			http.Error(w, `{"error":"Error al obtener artículos: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-
-		// Obtener categorías para mapear id->nombre
-		var categoriesRaw []map[string]interface{}
-		err = supabaseClient.DB.From("categorias").Select("id,nombre").Execute(&categoriesRaw)
-		if err != nil {
-			http.Error(w, `{"error":"Error al obtener categorías: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-		categoryMap := make(map[int]string)
-		for _, cat := range categoriesRaw {
-			if id, ok := cat["id"].(float64); ok {
-				if name, ok := cat["nombre"].(string); ok {
-					categoryMap[int(id)] = name
-				}
-			}
-		}
-
-		// Filtrar manualmente por nombre, proveedor o categoria_nombre
-		var filtered []ArticleResponse
-		for _, art := range articlesRaw {
-			nombre := strings.ToLower(art["nombre"].(string))
-			proveedor, _ := art["proveedor"].(string)
-			proveedor = strings.ToLower(proveedor)
-			categoriaNombre := ""
-			if catIDf, ok := art["categoria_id"].(float64); ok {
-				categoriaNombre = strings.ToLower(categoryMap[int(catIDf)])
-			}
-
-			if strings.Contains(nombre, termino) ||
-				strings.Contains(proveedor, termino) ||
-				strings.Contains(categoriaNombre, termino) {
-
-				var article ArticleResponse
-				bytesArt, _ := json.Marshal(art)
-				json.Unmarshal(bytesArt, &article)
-				if catIDf, ok := art["categoria_id"].(float64); ok {
-					article.CategoriaNombre = categoryMap[int(catIDf)]
-				} else {
-					article.CategoriaNombre = "Sin Categoría"
-				}
-				filtered = append(filtered, article)
-			}
-		}
-
-		jsonResp, err := json.Marshal(filtered)
-		if err != nil {
-			http.Error(w, `{"error":"Error al convertir a JSON: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Write(jsonResp)
 	})
 
 	handleReporteInventario := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -436,15 +230,15 @@ func main() {
 
 	router.HandleFunc("/api/articulos", handleGetArticulos)
 	router.HandleFunc("/api/articulos/", handleGetArticuloPorID)
+	router.HandleFunc("/api/articulos/buscar", handleBuscarArticulos)
 	router.Handle("/api/articulos/agregar", middleware.EnsureValidToken()(http.HandlerFunc(handleAgregarArticulo)))
 	router.Handle("/api/articulos/actualizar/", middleware.EnsureValidToken()(http.HandlerFunc(handleActualizarArticulo)))
 	router.Handle("/api/articulos/eliminar/", middleware.EnsureValidToken()(http.HandlerFunc(handleEliminarArticulo)))
-	router.HandleFunc("/api/articulos/buscar", handleBuscarArticulos)
 
-	router.Handle("/api/categorias", handleGetCategorias)
-	router.Handle("/api/categorias/agregar", middleware.EnsureValidToken()(handleAgregarCategoria))
-	router.Handle("/api/categorias/actualizar/", middleware.EnsureValidToken()(handleActualizarCategoria))
-	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(handleEliminarCategoria))
+	router.HandleFunc("/api/categorias", handleGetCategorias)
+	router.Handle("/api/categorias/agregar", middleware.EnsureValidToken()(http.HandlerFunc(handleAgregarCategoria)))
+	router.Handle("/api/categorias/actualizar/", middleware.EnsureValidToken()(http.HandlerFunc(handleActualizarCategoria)))
+	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(http.HandlerFunc(handleEliminarCategoria)))
 
 	router.Handle("/api/inventario", middleware.EnsureValidToken()(handleReporteInventario))
 
