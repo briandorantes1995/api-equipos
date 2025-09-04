@@ -70,210 +70,6 @@ func main() {
 		w.Write([]byte(`{"message":"Hello from a public endpoint! You don't need to be authenticated to see this."}`))
 	})
 
-	// Handler para /api/articulos/{id} (GET)
-
-	handleGetArticuloPorID := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		// Extraer ID desde la URL
-		idStr := strings.TrimPrefix(r.URL.Path, "/api/articulos/")
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
-			http.Error(w, `{"error":"ID inválido"}`, http.StatusBadRequest)
-			return
-		}
-
-		// Consultar el artículo por ID
-		var articuloRaw []map[string]interface{}
-		err = supabaseClient.DB.From("articulos").Select("*").Eq("id", strconv.Itoa(id)).Execute(&articuloRaw)
-		if err != nil || len(articuloRaw) == 0 {
-			http.Error(w, `{"error":"Artículo no encontrado"}`, http.StatusNotFound)
-			return
-		}
-
-		// Obtener el nombre de la categoría
-		nombreCategoria := "Sin Categoría"
-		if catID, ok := articuloRaw[0]["categoria_id"].(float64); ok {
-			var categoria []map[string]interface{}
-			err = supabaseClient.DB.From("categorias").Select("nombre").Eq("id", strconv.Itoa(int(catID))).Execute(&categoria)
-			if err == nil && len(categoria) > 0 {
-				if nombre, ok := categoria[0]["nombre"].(string); ok {
-					nombreCategoria = nombre
-				}
-			}
-		}
-
-		var articulo ArticleResponse
-		articleBytes, _ := json.Marshal(articuloRaw[0])
-		json.Unmarshal(articleBytes, &articulo)
-
-		articulo.CategoriaNombre = nombreCategoria
-
-		// Enviar JSON de respuesta
-		resp, err := json.Marshal(articulo)
-		if err != nil {
-			http.Error(w, `{"error":"Error al generar JSON"}`, http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Write(resp)
-	})
-
-	// Handler para /api/articulos/agregar (POST)
-	handleAgregarArticulo := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		var nuevo map[string]interface{}
-		err := json.NewDecoder(r.Body).Decode(&nuevo)
-		if err != nil {
-			http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
-			return
-		}
-
-		// Extraemos inventario inicial y usuario_id del payload si viene
-		cantidadInicial, ok := nuevo["inventario"].(float64)
-		if !ok {
-			cantidadInicial = 0 // default
-		}
-		nombreUsuario, _ := nuevo["name"].(float64)
-		delete(nuevo, "inventario")
-		delete(nuevo, "name")
-
-		// 1️⃣ Insertar artículo
-		var results []map[string]interface{}
-		err = supabaseClient.DB.From("articulos").Insert(nuevo).Execute(&results)
-		if err != nil || len(results) == 0 {
-			http.Error(w, `{"error":"Error al insertar artículo: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-
-		articuloID := results[0]["id"].(float64) // id del artículo insertado
-
-		// 2️⃣ Insertar inventario inicial
-		inventario := map[string]interface{}{
-			"articulo_id":     articuloID,
-			"cantidad_actual": cantidadInicial,
-		}
-		err = supabaseClient.DB.From("inventarios").Insert(inventario).Execute(nil)
-		if err != nil {
-			http.Error(w, `{"error":"Error al insertar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-
-		// 3️⃣ Registrar movimiento inicial
-		movimiento := map[string]interface{}{
-			"articulo_id":     articuloID,
-			"tipo_movimiento": "alta",
-			"cantidad":        cantidadInicial,
-			"motivo":          "Inventario inicial",
-			"usuario_nombre":  nombreUsuario,
-		}
-		err = supabaseClient.DB.From("movimientos_inventario").Insert(movimiento).Execute(nil)
-		if err != nil {
-			http.Error(w, `{"error":"Error al registrar movimiento: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-
-		// Responder con el artículo creado
-		json.NewEncoder(w).Encode(results[0])
-	})
-
-	// Handler para /api/articulos/actualizar (PUT)
-	handleActualizarArticulo := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut {
-			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
-		claims := token.CustomClaims.(*middleware.CustomClaims)
-		if !claims.HasPermission("update") {
-			http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
-			return
-		}
-
-		idStr := strings.TrimPrefix(r.URL.Path, "/api/articulos/actualizar/")
-		var id int
-		var err error
-		id, err = strconv.Atoi(idStr)
-		if err != nil {
-			http.Error(w, `{"error":"ID inválido"}`, http.StatusBadRequest)
-			return
-		}
-
-		var datos map[string]interface{}
-		err = json.NewDecoder(r.Body).Decode(&datos)
-		if err != nil {
-			http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
-			return
-		}
-
-		var results []map[string]interface{} // Usamos directamente slice de mapas
-		err = supabaseClient.DB.From("articulos").Update(datos).Eq("id", strconv.Itoa(id)).Execute(&results)
-		if err != nil {
-			http.Error(w, `{"error":"Error al actualizar: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-
-		if len(results) > 0 {
-			json.NewEncoder(w).Encode(results[0])
-		} else {
-			http.Error(w, `{"message":"Actualización exitosa, pero no se recibieron datos de respuesta."}`, http.StatusOK)
-		}
-	})
-
-	// Handler para /api/articulos/eliminar (DELETE)
-	handleEliminarArticulo := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete {
-			http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
-		claims := token.CustomClaims.(*middleware.CustomClaims)
-		if !claims.HasPermission("delete") {
-			http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
-			return
-		}
-
-		idStr := strings.TrimPrefix(r.URL.Path, "/api/articulos/eliminar/")
-		var id int
-		var err error
-		id, err = strconv.Atoi(idStr)
-		if err != nil {
-			http.Error(w, `{"error":"ID inválido"}`, http.StatusBadRequest)
-			return
-		}
-
-		var results []map[string]interface{} // Usamos directamente slice de mapas
-		err = supabaseClient.DB.From("articulos").Delete().Eq("id", strconv.Itoa(id)).Execute(&results)
-		if err != nil {
-			http.Error(w, `{"error":"Error al eliminar: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-
-		if len(results) > 0 {
-			json.NewEncoder(w).Encode(results[0])
-		} else {
-			http.Error(w, `{"message":"Eliminación exitosa, pero no se recibieron datos de respuesta."}`, http.StatusOK)
-		}
-	})
-
 	// Handler para /api/categorias (GET)
 	handleGetCategorias := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -637,19 +433,24 @@ func main() {
 
 	// Registro de rutas con http.ServeMux
 	router.Handle("/api/public", handlePublic)
+
 	router.HandleFunc("/api/articulos", handleGetArticulos)
-	router.Handle("/api/articulos/", handleGetArticuloPorID)
-	router.Handle("/api/articulos/agregar", middleware.EnsureValidToken()(handleAgregarArticulo))
-	router.Handle("/api/articulos/actualizar/", middleware.EnsureValidToken()(handleActualizarArticulo))
-	router.Handle("/api/articulos/eliminar/", middleware.EnsureValidToken()(handleEliminarArticulo))
-	router.Handle("/api/articulos/buscar", handleBuscarArticulos)
+	router.HandleFunc("/api/articulos/", handleGetArticuloPorID)
+	router.Handle("/api/articulos/agregar", middleware.EnsureValidToken()(http.HandlerFunc(handleAgregarArticulo)))
+	router.Handle("/api/articulos/actualizar/", middleware.EnsureValidToken()(http.HandlerFunc(handleActualizarArticulo)))
+	router.Handle("/api/articulos/eliminar/", middleware.EnsureValidToken()(http.HandlerFunc(handleEliminarArticulo)))
+	router.HandleFunc("/api/articulos/buscar", handleBuscarArticulos)
+
 	router.Handle("/api/categorias", handleGetCategorias)
 	router.Handle("/api/categorias/agregar", middleware.EnsureValidToken()(handleAgregarCategoria))
 	router.Handle("/api/categorias/actualizar/", middleware.EnsureValidToken()(handleActualizarCategoria))
 	router.Handle("/api/categorias/eliminar/", middleware.EnsureValidToken()(handleEliminarCategoria))
+
 	router.Handle("/api/inventario", middleware.EnsureValidToken()(handleReporteInventario))
+
 	router.Handle("/api/movimientos/registrar", middleware.EnsureValidToken()(handleRegistrarMovimiento))
 	router.Handle("/api/movimientos", middleware.EnsureValidToken()(handleReporteMovimientos))
+
 	log.Print("Server listening on http://0.0.0.0:3010")
 	if err := http.ListenAndServe("0.0.0.0:3010", corsHandler(router)); err != nil {
 		log.Fatalf("There was an error with the http server: %v", err)
