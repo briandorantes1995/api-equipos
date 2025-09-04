@@ -12,7 +12,7 @@ RUN go mod download
 COPY . .
 
 # Compilar el binario estático para Linux
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o go-api main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o go-api .
 
 # Etapa de ejecución
 FROM debian:bullseye-slim
