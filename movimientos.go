@@ -149,7 +149,7 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 	// Validación de token y permisos
 	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
 	claims := token.CustomClaims.(*middleware.CustomClaims)
-	if !claims.HasPermission("write") {
+	if !claims.HasPermission("update") {
 		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
 		return
 	}
