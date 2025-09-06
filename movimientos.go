@@ -154,32 +154,29 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decodificar payload usando tu struct MovimientoEditar
 	var payload MovimientoEditar
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, `{"error":"Error al decodificar JSON: `+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
 
-	// Traer movimiento original
-	var original Movimiento
+	var movimientos []Movimiento
 	err := supabaseClient.DB.
 		From("movimientos_inventario").
 		Select("*").
 		Eq("id", strconv.Itoa(payload.ID)).
-		Execute(&original)
-	if err != nil {
+		Execute(&movimientos)
+	if err != nil || len(movimientos) == 0 {
 		http.Error(w, `{"error":"No se encontró el movimiento original: `+err.Error()+`"}`, http.StatusNotFound)
 		return
 	}
+	original := movimientos[0]
 
-	// Validación: no permitir cambio de tipo si es alta
 	if original.TipoMovimiento == "alta" && payload.TipoMovimiento != "alta" {
 		http.Error(w, `{"error":"No se permite cambiar el tipo de un movimiento de alta"}`, http.StatusBadRequest)
 		return
 	}
 
-	// Traer inventario actual
 	var inventarios []InventarioArticulo
 	err = supabaseClient.DB.
 		From("inventarios").
