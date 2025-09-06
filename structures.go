@@ -35,14 +35,15 @@ type Movimiento struct {
 }
 
 type MovimientoConNombre struct {
-	ID             int     `json:"id"`
-	ArticuloID     int     `json:"articulo_id"`
-	NombreArticulo string  `json:"nombre_articulo"`
-	TipoMovimiento string  `json:"tipo_movimiento"`
-	Cantidad       float64 `json:"cantidad"`
-	Motivo         string  `json:"motivo"`
-	Fecha          string  `json:"fecha"`
-	UsuarioNombre  string  `json:"usuario_nombre"`
+	ID                int     `json:"id"`
+	ArticuloID        int     `json:"articulo_id"`
+	NombreArticulo    string  `json:"nombre_articulo"`
+	ProveedorArticulo string  `json:"proveedor_articulo"` // nueva columna
+	TipoMovimiento    string  `json:"tipo_movimiento"`
+	Cantidad          float64 `json:"cantidad"`
+	Motivo            string  `json:"motivo"`
+	Fecha             string  `json:"fecha"`
+	UsuarioNombre     string  `json:"usuario_nombre"`
 }
 
 type CategoryDetail struct {
