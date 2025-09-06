@@ -34,6 +34,13 @@ type Movimiento struct {
 	Fecha          string  `json:"fecha"`
 }
 
+type MovimientoEditar struct {
+	ID             int     `json:"id"`              // ID del movimiento a editar
+	Cantidad       float64 `json:"cantidad"`        // Nueva cantidad
+	TipoMovimiento string  `json:"tipo_movimiento"` // Nuevo tipo de movimiento
+	Motivo         string  `json:"motivo"`          // Nuevo motivo
+}
+
 type MovimientoConNombre struct {
 	ID                int     `json:"id"`
 	ArticuloID        int     `json:"articulo_id"`

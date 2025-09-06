@@ -136,3 +136,122 @@ func handleReporteMovimientos(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(movimientos)
 }
+
+func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validación de token y permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("write") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Decodificar payload
+	var payload struct {
+		ID             int     `json:"id"`              // ID del movimiento a editar
+		TipoMovimiento string  `json:"tipo_movimiento"` // Nuevo tipo
+		Cantidad       float64 `json:"cantidad"`        // Nueva cantidad
+		Motivo         string  `json:"motivo"`          // Nuevo motivo
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error":"Error al decodificar JSON: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Traer movimiento original
+	var original Movimiento
+	err := supabaseClient.DB.
+		From("movimientos_inventario").
+		Select("*").
+		Eq("id", strconv.Itoa(payload.ID)).
+		Execute(&original)
+	if err != nil {
+		http.Error(w, `{"error":"No se encontró el movimiento original: `+err.Error()+`"}`, http.StatusNotFound)
+		return
+	}
+
+	// Validación: no permitir cambio de tipo si es alta
+	if original.TipoMovimiento == "alta" && payload.TipoMovimiento != "alta" {
+		http.Error(w, `{"error":"No se permite cambiar el tipo de un movimiento de alta"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Traer inventario actual
+	var inventarios []InventarioArticulo
+	err = supabaseClient.DB.
+		From("inventarios").
+		Select("*").
+		Eq("articulo_id", strconv.Itoa(original.ArticuloID)).
+		Execute(&inventarios)
+	if err != nil || len(inventarios) == 0 {
+		http.Error(w, `{"error":"No se pudo obtener inventario"}`, http.StatusInternalServerError)
+		return
+	}
+	cantidadActual := inventarios[0].CantidadActual
+
+	// Anular efecto del movimiento original
+	switch original.TipoMovimiento {
+	case "alta", "compra", "transferencia_entrada":
+		cantidadActual -= original.Cantidad
+	case "venta", "baja", "robo", "transferencia_salida":
+		cantidadActual += original.Cantidad
+	case "ajuste_inventario":
+		// Para ajuste, restamos la diferencia registrada
+		cantidadActual -= original.Cantidad
+	}
+
+	// Aplicar nuevo movimiento
+	if payload.TipoMovimiento == "ajuste_inventario" {
+		// Ajuste absoluto: inventario igual a nueva cantidad
+		diferencia := payload.Cantidad - cantidadActual
+		cantidadActual += diferencia
+		payload.Cantidad = diferencia // registrar diferencia como movimiento
+	} else {
+		switch payload.TipoMovimiento {
+		case "alta", "compra", "transferencia_entrada":
+			cantidadActual += payload.Cantidad
+		case "venta", "baja", "robo", "transferencia_salida":
+			cantidadActual -= payload.Cantidad
+		}
+	}
+
+	// Actualizar inventario
+	upsert := map[string]interface{}{
+		"articulo_id":          original.ArticuloID,
+		"cantidad_actual":      cantidadActual,
+		"ultima_actualizacion": time.Now(),
+	}
+	if err := supabaseClient.DB.From("inventarios").Upsert(upsert).Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Actualizar movimiento original
+	updates := map[string]interface{}{
+		"tipo_movimiento": payload.TipoMovimiento,
+		"cantidad":        payload.Cantidad,
+		"motivo":          payload.Motivo,
+		"fecha":           time.Now(),
+	}
+	if err := supabaseClient.DB.From("movimientos_inventario").
+		Update(updates).
+		Eq("id", strconv.Itoa(payload.ID)).
+		Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al actualizar movimiento: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Respuesta
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":         "Movimiento editado y inventario actualizado",
+		"articulo_id":     original.ArticuloID,
+		"cantidad_actual": cantidadActual,
+	})
+}
