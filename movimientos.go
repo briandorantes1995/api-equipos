@@ -137,6 +137,7 @@ func handleReporteMovimientos(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(movimientos)
 }
 
+// Handler para editar un movimiento existente y ajustar inventario
 func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
@@ -153,13 +154,8 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decodificar payload
-	var payload struct {
-		ID             int     `json:"id"`              // ID del movimiento a editar
-		TipoMovimiento string  `json:"tipo_movimiento"` // Nuevo tipo
-		Cantidad       float64 `json:"cantidad"`        // Nueva cantidad
-		Motivo         string  `json:"motivo"`          // Nuevo motivo
-	}
+	// Decodificar payload usando tu struct MovimientoEditar
+	var payload MovimientoEditar
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, `{"error":"Error al decodificar JSON: `+err.Error()+`"}`, http.StatusBadRequest)
 		return
