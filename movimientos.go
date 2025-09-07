@@ -30,19 +30,33 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Decodificar el movimiento
-	var movimiento Movimiento
-	if err := json.NewDecoder(r.Body).Decode(&movimiento); err != nil {
+	var payload struct {
+		ArticuloID     int     `json:"articulo_id"`
+		TipoMovimiento string  `json:"tipo_movimiento"`
+		Cantidad       float64 `json:"cantidad"`
+		Motivo         string  `json:"motivo"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, `{"error":"Error al decodificar JSON: `+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Validar campos esenciales
-	if movimiento.ArticuloID <= 0 || movimiento.TipoMovimiento == "" || movimiento.Cantidad <= 0 {
+	if payload.ArticuloID <= 0 || payload.TipoMovimiento == "" || payload.Cantidad <= 0 {
 		http.Error(w, `{"error":"Datos del movimiento inválidos"}`, http.StatusBadRequest)
 		return
 	}
 
-	// Registrar movimiento
+	// Preparar movimiento como map[string]interface{} sin fecha
+	movimiento := map[string]interface{}{
+		"articulo_id":     payload.ArticuloID,
+		"tipo_movimiento": payload.TipoMovimiento,
+		"cantidad":        payload.Cantidad,
+		"motivo":          payload.Motivo,
+		// no incluir "fecha" para que PostgreSQL use DEFAULT now()
+	}
+
+	// Insertar movimiento
 	if err := supabaseClient.DB.
 		From("movimientos_inventario").
 		Insert(movimiento).
@@ -56,7 +70,7 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 	err := supabaseClient.DB.
 		From("inventarios").
 		Select("*").
-		Eq("articulo_id", strconv.Itoa(movimiento.ArticuloID)).
+		Eq("articulo_id", strconv.Itoa(payload.ArticuloID)).
 		Execute(&inventarios)
 	if err != nil || len(inventarios) == 0 {
 		http.Error(w, `{"error":"Inventario no encontrado"}`, http.StatusInternalServerError)
@@ -66,17 +80,17 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 	cantidadActual := inventarios[0].CantidadActual
 
 	// Ajustar inventario según tipo
-	switch movimiento.TipoMovimiento {
+	switch payload.TipoMovimiento {
 	case "compra", "transferencia_entrada":
-		cantidadActual += movimiento.Cantidad
+		cantidadActual += payload.Cantidad
 	case "venta", "baja", "robo", "transferencia_salida":
-		cantidadActual -= movimiento.Cantidad
+		cantidadActual -= payload.Cantidad
 	default:
 		http.Error(w, `{"error":"Tipo de movimiento desconocido o no permitido"}`, http.StatusBadRequest)
 		return
 	}
 
-	// Actualizar inventario con Update (sin fecha, PostgreSQL lo maneja)
+	// Actualizar inventario con Update (sin fecha)
 	update := map[string]interface{}{
 		"cantidad_actual": cantidadActual,
 	}
@@ -84,7 +98,7 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 	if err := supabaseClient.DB.
 		From("inventarios").
 		Update(update).
-		Eq("articulo_id", strconv.Itoa(movimiento.ArticuloID)).
+		Eq("articulo_id", strconv.Itoa(payload.ArticuloID)).
 		Execute(nil); err != nil {
 		http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
@@ -93,7 +107,7 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 	// Respuesta
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message":         "Movimiento registrado y inventario actualizado",
-		"articulo_id":     movimiento.ArticuloID,
+		"articulo_id":     payload.ArticuloID,
 		"cantidad_actual": cantidadActual,
 	})
 }
