@@ -1,7 +1,5 @@
 package main
 
-import "time"
-
 type ArticleResponse struct {
 	ID              int     `json:"id,omitempty"`
 	CreatedAt       string  `json:"created_at,omitempty"`
@@ -19,15 +17,15 @@ type ArticleResponse struct {
 }
 
 type InventarioArticulo struct {
-	ID                  int        `json:"id"`
-	Nombre              string     `json:"nombre"`
-	PrecioVenta         float64    `json:"precio_venta"`
-	Costo               float64    `json:"costo"`
-	Proveedor           string     `json:"proveedor"`
-	CodigoBarras        string     `json:"codigo_barras"`
-	SKU                 string     `json:"sku"`
-	CantidadActual      float64    `json:"cantidad_actual"`
-	UltimaActualizacion *time.Time `json:"ultima_actualizacion"`
+	ID                  int     `json:"id"`
+	Nombre              string  `json:"nombre"`
+	PrecioVenta         float64 `json:"precio_venta"`
+	Costo               float64 `json:"costo"`
+	Proveedor           string  `json:"proveedor"`
+	CodigoBarras        string  `json:"codigo_barras"`
+	SKU                 string  `json:"sku"`
+	CantidadActual      float64 `json:"cantidad_actual"`
+	UltimaActualizacion string  `json:"ultima_actualizacion"`
 }
 
 type InventarioMovimientoArticulo struct {
