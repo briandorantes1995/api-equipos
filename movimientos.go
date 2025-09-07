@@ -238,3 +238,92 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		"cantidad_actual": cantidadActual,
 	})
 }
+
+// Handler para eliminar un movimiento existente y ajustar inventario
+func handleEliminarMovimiento(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validación de token y permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("delete") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Decodificar payload con ID
+	var payload struct {
+		ID int `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error":"Error al decodificar JSON: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Obtener movimiento original
+	var movimientos []Movimiento
+	err := supabaseClient.DB.
+		From("movimientos_inventario").
+		Select("*").
+		Eq("id", strconv.Itoa(payload.ID)).
+		Execute(&movimientos)
+	if err != nil || len(movimientos) == 0 {
+		http.Error(w, `{"error":"No se encontró el movimiento original"}`, http.StatusNotFound)
+		return
+	}
+	original := movimientos[0]
+
+	// Obtener inventario actual
+	var inventarios []InventarioMovimientoArticulo
+	err = supabaseClient.DB.
+		From("inventarios").
+		Select("*").
+		Eq("articulo_id", strconv.Itoa(original.ArticuloID)).
+		Execute(&inventarios)
+	if err != nil || len(inventarios) == 0 {
+		http.Error(w, `{"error":"No se pudo obtener inventario"}`, http.StatusInternalServerError)
+		return
+	}
+	cantidadActual := inventarios[0].CantidadActual
+
+	// Revertir efecto del movimiento
+	switch original.TipoMovimiento {
+	case "alta", "compra", "transferencia_entrada":
+		cantidadActual -= original.Cantidad
+	case "venta", "baja", "robo", "transferencia_salida":
+		cantidadActual += original.Cantidad
+	}
+
+	// Actualizar inventario
+	upsert := map[string]interface{}{
+		"articulo_id":          original.ArticuloID,
+		"cantidad_actual":      cantidadActual,
+		"ultima_actualizacion": time.Now(),
+	}
+	if err := supabaseClient.DB.From("inventarios").Upsert(upsert).Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Eliminar movimiento
+	if err := supabaseClient.DB.
+		From("movimientos_inventario").
+		Delete().
+		Eq("id", strconv.Itoa(payload.ID)).
+		Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al eliminar movimiento: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Respuesta
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":         "Movimiento eliminado y inventario ajustado",
+		"articulo_id":     original.ArticuloID,
+		"cantidad_actual": cantidadActual,
+	})
+}
