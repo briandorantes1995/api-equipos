@@ -40,12 +40,12 @@ type InventarioMovimientoArticulo struct {
 }
 
 type Movimiento struct {
-	ArticuloID     int       `json:"articulo_id"`
-	TipoMovimiento string    `json:"tipo_movimiento"`
-	Cantidad       float64   `json:"cantidad"`
-	Motivo         string    `json:"motivo"`
-	UsuarioNombre  string    `json:"usuario_nombre"`
-	Fecha          time.Time `json:"fecha"`
+	ArticuloID     int        `json:"articulo_id"`
+	TipoMovimiento string     `json:"tipo_movimiento"`
+	Cantidad       float64    `json:"cantidad"`
+	Motivo         string     `json:"motivo"`
+	UsuarioNombre  string     `json:"usuario_nombre"`
+	Fecha          *time.Time `json:"fecha,omitempty"`
 }
 
 type MovimientoEditar struct {
