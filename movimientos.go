@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"equiposmedicos/middleware"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -138,8 +137,8 @@ func handleReporteMovimientos(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(movimientos)
 }
 
-// Handler para editar un movimiento existente y ajustar inventario
-func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
+// Nuevo handler para editar la cantidad de un movimiento existente
+func handleEditarMovimientoCantidad(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
 		return
@@ -161,6 +160,7 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Obtener movimiento original
 	var movimientos []Movimiento
 	err := supabaseClient.DB.
 		From("movimientos_inventario").
@@ -168,12 +168,12 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		Eq("id", strconv.Itoa(payload.ID)).
 		Execute(&movimientos)
 	if err != nil || len(movimientos) == 0 {
-		http.Error(w, `{"error":"No se encontró el movimiento original: `+err.Error()+`"}`, http.StatusNotFound)
+		http.Error(w, `{"error":"No se encontró el movimiento original"}`, http.StatusNotFound)
 		return
 	}
 	original := movimientos[0]
-	log.Printf("Movimiento original: %+v\n", original)
 
+	// Obtener inventario actual
 	var inventarios []InventarioMovimientoArticulo
 	err = supabaseClient.DB.
 		From("inventarios").
@@ -192,25 +192,10 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		cantidadActual -= original.Cantidad
 	case "venta", "baja", "robo", "transferencia_salida":
 		cantidadActual += original.Cantidad
-	case "ajuste_inventario":
-		// Para ajuste, restamos la diferencia registrada
-		cantidadActual -= original.Cantidad
 	}
 
-	// Aplicar nuevo movimiento
-	if payload.TipoMovimiento == "ajuste_inventario" {
-		// Ajuste absoluto: inventario igual a nueva cantidad
-		diferencia := payload.Cantidad - cantidadActual
-		cantidadActual += diferencia
-		payload.Cantidad = diferencia // registrar diferencia como movimiento
-	} else {
-		switch payload.TipoMovimiento {
-		case "alta", "compra", "transferencia_entrada":
-			cantidadActual += payload.Cantidad
-		case "venta", "baja", "robo", "transferencia_salida":
-			cantidadActual -= payload.Cantidad
-		}
-	}
+	// Aplicar nueva cantidad del payload
+	cantidadActual += payload.Cantidad
 
 	// Actualizar inventario
 	upsert := map[string]interface{}{
@@ -223,24 +208,9 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Actualizar movimiento original
-	updates := map[string]interface{}{
-		"tipo_movimiento": payload.TipoMovimiento,
-		"cantidad":        payload.Cantidad,
-		"motivo":          payload.Motivo,
-		"fecha":           time.Now(),
-	}
-	if err := supabaseClient.DB.From("movimientos_inventario").
-		Update(updates).
-		Eq("id", strconv.Itoa(payload.ID)).
-		Execute(nil); err != nil {
-		http.Error(w, `{"error":"Error al actualizar movimiento: `+err.Error()+`"}`, http.StatusInternalServerError)
-		return
-	}
-
 	// Respuesta
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message":         "Movimiento editado y inventario actualizado",
+		"message":         "Inventario actualizado",
 		"articulo_id":     original.ArticuloID,
 		"cantidad_actual": cantidadActual,
 	})
