@@ -12,7 +12,7 @@ import (
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 )
 
-// Handler para registrar movimientos y actualizar inventario
+// Handler para registrar movimientos y actualizar inventario (sin "alta")
 func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
@@ -36,30 +36,28 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validar campos
+	// Validar campos esenciales
 	if movimiento.ArticuloID <= 0 || movimiento.TipoMovimiento == "" || movimiento.Cantidad <= 0 {
 		http.Error(w, `{"error":"Datos del movimiento inválidos"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Registrar movimiento
-	err := supabaseClient.DB.
+	if err := supabaseClient.DB.
 		From("movimientos_inventario").
 		Insert(movimiento).
-		Execute(nil)
-	if err != nil {
+		Execute(nil); err != nil {
 		http.Error(w, `{"error":"Error al insertar movimiento: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
 
 	// Obtener inventario actual
 	var inventarios []InventarioArticulo
-	err = supabaseClient.DB.
+	err := supabaseClient.DB.
 		From("inventarios").
 		Select("*").
 		Eq("articulo_id", strconv.Itoa(movimiento.ArticuloID)).
 		Execute(&inventarios)
-
 	if err != nil {
 		http.Error(w, `{"error":"Error al obtener inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
@@ -70,14 +68,14 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 		cantidadActual = inventarios[0].CantidadActual
 	}
 
-	// Actualizar inventario según tipo
+	// Ajustar inventario según tipo (sin "alta")
 	switch movimiento.TipoMovimiento {
-	case "alta", "compra", "transferencia_entrada":
+	case "compra", "transferencia_entrada":
 		cantidadActual += movimiento.Cantidad
 	case "venta", "baja", "robo", "transferencia_salida":
 		cantidadActual -= movimiento.Cantidad
 	default:
-		http.Error(w, `{"error":"Tipo de movimiento desconocido"}`, http.StatusBadRequest)
+		http.Error(w, `{"error":"Tipo de movimiento desconocido o no permitido"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -88,12 +86,10 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 		"ultima_actualizacion": time.Now(),
 	}
 
-	// Solo un valor de retorno, no dos
-	err = supabaseClient.DB.
+	if err := supabaseClient.DB.
 		From("inventarios").
 		Upsert(upsert).
-		Execute(nil)
-	if err != nil {
+		Execute(nil); err != nil {
 		http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
