@@ -203,16 +203,17 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 
 	cantidadActual := inventarios[0].CantidadActual
 
-	// Anular efecto del movimiento original
+	delta := payload.Cantidad - original.Cantidad
+
 	switch original.TipoMovimiento {
 	case "alta", "compra", "transferencia_entrada":
-		cantidadActual -= original.Cantidad
+		cantidadActual += delta
 	case "venta", "baja", "robo", "transferencia_salida":
-		cantidadActual += original.Cantidad
+		cantidadActual -= delta
+	default:
+		http.Error(w, `{"error":"Tipo de movimiento desconocido"}`, http.StatusBadRequest)
+		return
 	}
-
-	// Aplicar nueva cantidad del payload
-	cantidadActual += payload.Cantidad
 
 	if err := supabaseClient.DB.
 		From("inventarios").
@@ -276,46 +277,47 @@ func handleEliminarMovimiento(w http.ResponseWriter, r *http.Request) {
 
 	// Obtener movimiento original
 	var movimientos []Movimiento
-	if err := supabaseClient.DB.
+	err := supabaseClient.DB.
 		From("movimientos_inventario").
 		Select("*").
 		Eq("id", strconv.Itoa(payload.ID)).
-		Execute(&movimientos); err != nil || len(movimientos) == 0 {
-		http.Error(w, `{"error":"Movimiento no encontrado"}`, http.StatusNotFound)
+		Execute(&movimientos)
+	if err != nil || len(movimientos) == 0 {
+		http.Error(w, `{"error":"No se encontró el movimiento original"}`, http.StatusNotFound)
 		return
 	}
 	original := movimientos[0]
 
-	// Obtener inventario existente
-	var inventarios []InventarioArticulo
-	if err := supabaseClient.DB.
+	// Obtener inventario actual
+	var inventarios []InventarioMovimientoArticulo
+	err = supabaseClient.DB.
 		From("inventarios").
 		Select("*").
 		Eq("articulo_id", strconv.Itoa(original.ArticuloID)).
-		Execute(&inventarios); err != nil || len(inventarios) == 0 {
-		http.Error(w, `{"error":"Inventario no encontrado"}`, http.StatusInternalServerError)
+		Execute(&inventarios)
+	if err != nil || len(inventarios) == 0 {
+		http.Error(w, `{"error":"No se pudo obtener inventario"}`, http.StatusInternalServerError)
 		return
 	}
-
 	cantidadActual := inventarios[0].CantidadActual
 
-	// Revertir efecto del movimiento
 	switch original.TipoMovimiento {
 	case "compra", "transferencia_entrada":
 		cantidadActual -= original.Cantidad
 	case "venta", "baja", "robo", "transferencia_salida":
 		cantidadActual += original.Cantidad
+	default:
+		http.Error(w, `{"error":"Tipo de movimiento desconocido"}`, http.StatusBadRequest)
+		return
 	}
 
-	// Actualizar inventario existente
-	update := map[string]interface{}{
-		"cantidad_actual": cantidadActual,
+	// Actualizar inventario
+	upsert := map[string]interface{}{
+		"articulo_id":          original.ArticuloID,
+		"cantidad_actual":      cantidadActual,
+		"ultima_actualizacion": time.Now(),
 	}
-	if err := supabaseClient.DB.
-		From("inventarios").
-		Update(update).
-		Eq("articulo_id", strconv.Itoa(original.ArticuloID)).
-		Execute(nil); err != nil {
+	if err := supabaseClient.DB.From("inventarios").Upsert(upsert).Execute(nil); err != nil {
 		http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
