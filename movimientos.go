@@ -138,7 +138,7 @@ func handleReporteMovimientos(w http.ResponseWriter, r *http.Request) {
 }
 
 // Nuevo handler para editar la cantidad de un movimiento existente
-func handleEditarMovimientoCantidad(w http.ResponseWriter, r *http.Request) {
+func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
 		return
@@ -208,9 +208,23 @@ func handleEditarMovimientoCantidad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Actualizar cantidad en el movimiento original
+	updates := map[string]interface{}{
+		"cantidad": payload.Cantidad,
+		"fecha":    time.Now(),
+	}
+	if err := supabaseClient.DB.
+		From("movimientos_inventario").
+		Update(updates).
+		Eq("id", strconv.Itoa(payload.ID)).
+		Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al actualizar cantidad del movimiento: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
 	// Respuesta
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message":         "Inventario actualizado",
+		"message":         "Inventario y movimiento actualizados",
 		"articulo_id":     original.ArticuloID,
 		"cantidad_actual": cantidadActual,
 	})
