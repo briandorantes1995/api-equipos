@@ -12,7 +12,7 @@ import (
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 )
 
-// Handler para registrar un nuevo movimiento y actualizar inventario
+// Handler para registrar movimientos y actualizar inventario (sin "alta")
 func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
@@ -29,7 +29,7 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decodificar movimiento
+	// Decodificar el movimiento
 	var movimiento Movimiento
 	if err := json.NewDecoder(r.Body).Decode(&movimiento); err != nil {
 		http.Error(w, `{"error":"Error al decodificar JSON: `+err.Error()+`"}`, http.StatusBadRequest)
@@ -63,43 +63,31 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cantidadActual := movimiento.Cantidad
-	if len(inventarios) > 0 {
-		// Actualizamos la cantidad existente
-		switch movimiento.TipoMovimiento {
-		case "compra", "transferencia_entrada":
-			cantidadActual += inventarios[0].CantidadActual
-		case "venta", "baja", "robo", "transferencia_salida":
-			cantidadActual = inventarios[0].CantidadActual - movimiento.Cantidad
-		}
+	cantidadActual := inventarios[0].CantidadActual // Siempre existe según tu aclaración
 
-		update := map[string]interface{}{
-			"cantidad_actual":      cantidadActual,
-			"ultima_actualizacion": time.Now(),
-		}
+	// Ajustar inventario según tipo
+	switch movimiento.TipoMovimiento {
+	case "compra", "transferencia_entrada":
+		cantidadActual += movimiento.Cantidad
+	case "venta", "baja", "robo", "transferencia_salida":
+		cantidadActual -= movimiento.Cantidad
+	default:
+		http.Error(w, `{"error":"Tipo de movimiento desconocido o no permitido"}`, http.StatusBadRequest)
+		return
+	}
 
-		if err := supabaseClient.DB.
-			From("inventarios").
-			Update(update).
-			Eq("articulo_id", strconv.Itoa(movimiento.ArticuloID)).
-			Execute(nil); err != nil {
-			http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
-	} else {
-		// No existe, insertamos nuevo
-		insert := map[string]interface{}{
-			"articulo_id":          movimiento.ArticuloID,
-			"cantidad_actual":      cantidadActual,
-			"ultima_actualizacion": time.Now(),
-		}
-		if err := supabaseClient.DB.
-			From("inventarios").
-			Insert(insert).
-			Execute(nil); err != nil {
-			http.Error(w, `{"error":"Error al insertar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
-			return
-		}
+	// Upsert en inventario sin enviar fecha (PostgreSQL manejará la fecha automáticamente)
+	upsert := map[string]interface{}{
+		"articulo_id":     movimiento.ArticuloID,
+		"cantidad_actual": cantidadActual,
+	}
+
+	if err := supabaseClient.DB.
+		From("inventarios").
+		Upsert(upsert).
+		Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
 	}
 
 	// Respuesta
