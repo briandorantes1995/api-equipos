@@ -311,13 +311,15 @@ func handleEliminarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Actualizar inventario
-	upsert := map[string]interface{}{
-		"articulo_id":          original.ArticuloID,
+	update := map[string]interface{}{
 		"cantidad_actual":      cantidadActual,
 		"ultima_actualizacion": time.Now(),
 	}
-	if err := supabaseClient.DB.From("inventarios").Upsert(upsert).Execute(nil); err != nil {
+	if err := supabaseClient.DB.
+		From("inventarios").
+		Update(update).
+		Eq("articulo_id", strconv.Itoa(original.ArticuloID)).
+		Execute(nil); err != nil {
 		http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
