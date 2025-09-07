@@ -276,45 +276,46 @@ func handleEliminarMovimiento(w http.ResponseWriter, r *http.Request) {
 
 	// Obtener movimiento original
 	var movimientos []Movimiento
-	err := supabaseClient.DB.
+	if err := supabaseClient.DB.
 		From("movimientos_inventario").
 		Select("*").
 		Eq("id", strconv.Itoa(payload.ID)).
-		Execute(&movimientos)
-	if err != nil || len(movimientos) == 0 {
-		http.Error(w, `{"error":"No se encontró el movimiento original"}`, http.StatusNotFound)
+		Execute(&movimientos); err != nil || len(movimientos) == 0 {
+		http.Error(w, `{"error":"Movimiento no encontrado"}`, http.StatusNotFound)
 		return
 	}
 	original := movimientos[0]
 
-	// Obtener inventario actual
-	var inventarios []InventarioMovimientoArticulo
-	err = supabaseClient.DB.
+	// Obtener inventario existente
+	var inventarios []InventarioArticulo
+	if err := supabaseClient.DB.
 		From("inventarios").
 		Select("*").
 		Eq("articulo_id", strconv.Itoa(original.ArticuloID)).
-		Execute(&inventarios)
-	if err != nil || len(inventarios) == 0 {
-		http.Error(w, `{"error":"No se pudo obtener inventario"}`, http.StatusInternalServerError)
+		Execute(&inventarios); err != nil || len(inventarios) == 0 {
+		http.Error(w, `{"error":"Inventario no encontrado"}`, http.StatusInternalServerError)
 		return
 	}
+
 	cantidadActual := inventarios[0].CantidadActual
 
 	// Revertir efecto del movimiento
 	switch original.TipoMovimiento {
-	case "alta", "compra", "transferencia_entrada":
+	case "compra", "transferencia_entrada":
 		cantidadActual -= original.Cantidad
 	case "venta", "baja", "robo", "transferencia_salida":
 		cantidadActual += original.Cantidad
 	}
 
-	// Actualizar inventario
-	upsert := map[string]interface{}{
-		"articulo_id":          original.ArticuloID,
-		"cantidad_actual":      cantidadActual,
-		"ultima_actualizacion": time.Now(),
+	// Actualizar inventario existente
+	update := map[string]interface{}{
+		"cantidad_actual": cantidadActual,
 	}
-	if err := supabaseClient.DB.From("inventarios").Upsert(upsert).Execute(nil); err != nil {
+	if err := supabaseClient.DB.
+		From("inventarios").
+		Update(update).
+		Eq("articulo_id", strconv.Itoa(original.ArticuloID)).
+		Execute(nil); err != nil {
 		http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
