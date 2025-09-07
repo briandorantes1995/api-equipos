@@ -184,7 +184,7 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		Eq("articulo_id", strconv.Itoa(original.ArticuloID)).
 		Execute(&inventarios)
 	if err != nil || len(inventarios) == 0 {
-		http.Error(w, `{"error":"No se pudo obtener inventario"}`, http.StatusInternalServerError)
+		http.Error(w, `{"error":"No se encontró el movimiento original: `+err.Error()+`"}`, http.StatusNotFound)
 		return
 	}
 	cantidadActual := inventarios[0].CantidadActual
