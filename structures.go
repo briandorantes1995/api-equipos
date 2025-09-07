@@ -25,7 +25,7 @@ type InventarioArticulo struct {
 	UltimaActualizacion *time.Time `json:"ultima_actualizacion"`
 }
 
-type MovimientoArticulo struct {
+type InventarioMovimientoArticulo struct {
 	ID                  int        `json:"id"`
 	ArticuloID          int        `json:"articulo_id"`
 	CantidadActual      float64    `json:"cantidad_actual"`
