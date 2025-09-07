@@ -174,7 +174,7 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 	original := movimientos[0]
 	log.Printf("Movimiento original: %+v\n", original)
 
-	var inventarios []InventarioArticulo
+	var inventarios []MovimientoArticulo
 	err = supabaseClient.DB.
 		From("inventarios").
 		Select("*").
