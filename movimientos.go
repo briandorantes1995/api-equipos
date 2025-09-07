@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"equiposmedicos/middleware"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -171,6 +172,7 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	original := movimientos[0]
+	log.Printf("Movimiento original: %+v\n", original)
 
 	if original.TipoMovimiento == "alta" && payload.TipoMovimiento != "alta" {
 		http.Error(w, `{"error":"No se permite cambiar el tipo de un movimiento de alta"}`, http.StatusBadRequest)
