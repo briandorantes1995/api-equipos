@@ -138,7 +138,7 @@ func handleReporteMovimientos(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(movimientos)
 }
 
-// Nuevo handler para editar la cantidad de un movimiento existente
+// Handler para editar la cantidad de un movimiento existente
 func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
@@ -155,6 +155,7 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Decodificar payload
 	var payload MovimientoEditar
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, `{"error":"Error al decodificar JSON: `+err.Error()+`"}`, http.StatusBadRequest)
@@ -206,13 +207,14 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 	// Aplicar nueva cantidad del payload
 	cantidadActual += payload.Cantidad
 
-	// Actualizar inventario
-	upsert := map[string]interface{}{
-		"articulo_id":          original.ArticuloID,
-		"cantidad_actual":      cantidadActual,
-		"ultima_actualizacion": time.Now(),
-	}
-	if err := supabaseClient.DB.From("inventarios").Upsert(upsert).Execute(nil); err != nil {
+	if err := supabaseClient.DB.
+		From("inventarios").
+		Update(map[string]interface{}{
+			"cantidad_actual":      cantidadActual,
+			"ultima_actualizacion": time.Now(),
+		}).
+		Eq("articulo_id", strconv.Itoa(original.ArticuloID)).
+		Execute(nil); err != nil {
 		http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
