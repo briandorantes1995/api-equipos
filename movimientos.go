@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"equiposmedicos/middleware"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -180,10 +181,18 @@ func handleEditarMovimiento(w http.ResponseWriter, r *http.Request) {
 		Select("*").
 		Eq("articulo_id", strconv.Itoa(original.ArticuloID)).
 		Execute(&inventarios)
-	if err != nil || len(inventarios) == 0 {
-		http.Error(w, `{"error":"No se pudo obtener inventario"}`, http.StatusInternalServerError)
+	if err != nil {
+		log.Printf("Error al consultar inventario: %v\n", err)
+		http.Error(w, `{"error":"Error al consultar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
+
+	if len(inventarios) == 0 {
+		log.Printf("Inventario no encontrado para articulo_id %d\n", original.ArticuloID)
+		http.Error(w, `{"error":"Inventario no encontrado"}`, http.StatusInternalServerError)
+		return
+	}
+
 	cantidadActual := inventarios[0].CantidadActual
 
 	// Anular efecto del movimiento original
