@@ -26,10 +26,10 @@ type InventarioArticulo struct {
 }
 
 type InventarioMovimientoArticulo struct {
-	ID                  int        `json:"id"`
-	ArticuloID          int        `json:"articulo_id"`
-	CantidadActual      float64    `json:"cantidad_actual"`
-	UltimaActualizacion *time.Time `json:"ultima_actualizacion"`
+	ID                  int     `json:"id"`
+	ArticuloID          int     `json:"articulo_id"`
+	CantidadActual      float64 `json:"cantidad_actual"`
+	UltimaActualizacion string  `json:"ultima_actualizacion"`
 }
 
 type Movimiento struct {
