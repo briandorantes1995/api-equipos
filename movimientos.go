@@ -12,7 +12,7 @@ import (
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 )
 
-// Handler para registrar movimientos y actualizar inventario (sin "alta")
+// Handler para registrar movimientos y actualizar inventario
 func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
@@ -58,12 +58,12 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 		Select("*").
 		Eq("articulo_id", strconv.Itoa(movimiento.ArticuloID)).
 		Execute(&inventarios)
-	if err != nil {
-		http.Error(w, `{"error":"Error al obtener inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
+	if err != nil || len(inventarios) == 0 {
+		http.Error(w, `{"error":"Inventario no encontrado"}`, http.StatusInternalServerError)
 		return
 	}
 
-	cantidadActual := inventarios[0].CantidadActual // Siempre existe según tu aclaración
+	cantidadActual := inventarios[0].CantidadActual
 
 	// Ajustar inventario según tipo
 	switch movimiento.TipoMovimiento {
@@ -76,15 +76,15 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Upsert en inventario sin enviar fecha (PostgreSQL manejará la fecha automáticamente)
-	upsert := map[string]interface{}{
-		"articulo_id":     movimiento.ArticuloID,
+	// Actualizar inventario con Update (sin fecha, PostgreSQL lo maneja)
+	update := map[string]interface{}{
 		"cantidad_actual": cantidadActual,
 	}
 
 	if err := supabaseClient.DB.
 		From("inventarios").
-		Upsert(upsert).
+		Update(update).
+		Eq("articulo_id", strconv.Itoa(movimiento.ArticuloID)).
 		Execute(nil); err != nil {
 		http.Error(w, `{"error":"Error al actualizar inventario: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
@@ -98,6 +98,7 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Handler para obtener el reporte de movimientos con nombres de artículos
 func handleReporteMovimientos(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
