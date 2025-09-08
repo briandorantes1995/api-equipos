@@ -27,7 +27,7 @@ func handleRegistrarCompra(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
 		Articulos []struct {
 			ArticuloID     int     `json:"articulo_id"`
-			Cantidad       float64 `json:"cantidad"`
+			Cantidad       int     `json:"cantidad"`
 			PrecioUnitario float64 `json:"precio_unitario"`
 		} `json:"articulos"`
 		Notas string `json:"notas,omitempty"`
