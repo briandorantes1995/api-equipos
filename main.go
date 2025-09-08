@@ -87,6 +87,8 @@ func main() {
 	router.Handle("/api/movimientos/eliminar", middleware.EnsureValidToken()(http.HandlerFunc(handleEliminarMovimiento)))
 
 	router.Handle("/api/compras/registrar", middleware.EnsureValidToken()(http.HandlerFunc(handleRegistrarCompra)))
+	router.Handle("/api/compras", middleware.EnsureValidToken()(http.HandlerFunc(handleObtenerComprasResumen)))
+	router.Handle("/api/compras/", middleware.EnsureValidToken()(http.HandlerFunc(handleDetalleCompra)))
 
 	log.Print("Server listening on http://0.0.0.0:3010")
 	if err := http.ListenAndServe("0.0.0.0:3010", corsHandler(router)); err != nil {

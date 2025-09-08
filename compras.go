@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"equiposmedicos/middleware"
 	"net/http"
+	"strconv"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware/v2"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
@@ -73,4 +74,72 @@ func handleRegistrarCompra(w http.ResponseWriter, r *http.Request) {
 		"message":   "Compra registrada correctamente",
 		"compra_id": compraID,
 	})
+}
+
+// Retorna un resumen de todas las compras registradas
+func handleObtenerComprasResumen(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// validacion
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("read") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// consultar la vista
+	var comprasResumen []map[string]interface{}
+	if err := supabaseClient.DB.From("vista_compras_resumen").Select("*").Execute(&comprasResumen); err != nil {
+		http.Error(w, `{"error":"Error al obtener compras: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(comprasResumen)
+}
+
+// handleDetalleCompra retorna el detalle de una compra específica
+func handleDetalleCompra(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// validar token JWT
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("read") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// obtener compra_id de query params
+	compraIDStr := r.URL.Query().Get("compra_id")
+	if compraIDStr == "" {
+		http.Error(w, `{"error":"Debe especificar compra_id"}`, http.StatusBadRequest)
+		return
+	}
+	compraID, err := strconv.Atoi(compraIDStr)
+	if err != nil {
+		http.Error(w, `{"error":"compra_id inválido"}`, http.StatusBadRequest)
+		return
+	}
+
+	// consultar la vista con filtro por compra_id
+	var detalles []map[string]interface{}
+	if err := supabaseClient.DB.
+		From("vista_compras_detalle").
+		Select("*").
+		Eq("compra_id", strconv.Itoa(compraID)).
+		Execute(&detalles); err != nil {
+		http.Error(w, `{"error":"Error al obtener detalle de compra: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(detalles)
 }
