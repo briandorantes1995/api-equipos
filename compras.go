@@ -53,7 +53,7 @@ func handleRegistrarCompra(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	compraID := compraResult[0]["id"].(int)
+	compraID := compraResult[0]["id"].(float64)
 
 	// Insertar detalles
 	for _, item := range payload.Articulos {
