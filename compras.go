@@ -143,3 +143,131 @@ func handleDetalleCompra(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(detalles)
 }
+
+// handleEditarCompra maneja la edición de una compra existente.
+func handleEditarCompra(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validar permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("update") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Payload
+	var payload struct {
+		CompraID  int `json:"compra_id"`
+		Articulos []struct {
+			ArticuloID     int     `json:"articulo_id"`
+			Cantidad       int     `json:"cantidad"`
+			PrecioUnitario float64 `json:"precio_unitario"`
+		} `json:"articulos"`
+		Notas string `json:"notas,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	if payload.CompraID == 0 {
+		http.Error(w, `{"error":"Debe indicar compra_id"}`, http.StatusBadRequest)
+		return
+	}
+	if len(payload.Articulos) == 0 {
+		http.Error(w, `{"error":"Debe enviar al menos un artículo"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Actualizar cabecera (solo notas en este ejemplo)
+	update := map[string]interface{}{
+		"notas": payload.Notas,
+	}
+	if err := supabaseClient.DB.From("compras").
+		Update(update).
+		Eq("id", strconv.Itoa(payload.CompraID)).
+		Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al actualizar compra: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Borrar detalles anteriores
+	if err := supabaseClient.DB.From("compras_detalles").
+		Delete().
+		Eq("compra_id", strconv.Itoa(payload.CompraID)).
+		Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al eliminar detalles: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Insertar nuevos detalles
+	for _, item := range payload.Articulos {
+		detalle := map[string]interface{}{
+			"compra_id":       payload.CompraID,
+			"articulo_id":     item.ArticuloID,
+			"cantidad":        item.Cantidad,
+			"precio_unitario": item.PrecioUnitario,
+		}
+		if err := supabaseClient.DB.From("compras_detalles").Insert(detalle).Execute(nil); err != nil {
+			http.Error(w, `{"error":"Error al insertar detalle: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Respuesta
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":   "Compra editada correctamente",
+		"compra_id": payload.CompraID,
+	})
+}
+
+// handleEliminarCompra maneja la eliminación de una compra existente.
+func handleEliminarCompra(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validar permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("delete") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Payload con compra_id
+	var payload struct {
+		CompraID int `json:"compra_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+	if payload.CompraID == 0 {
+		http.Error(w, `{"error":"Debe indicar compra_id"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Eliminar la compra
+	if err := supabaseClient.DB.From("compras").
+		Delete().
+		Eq("id", strconv.Itoa(payload.CompraID)).
+		Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al eliminar compra: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Respuesta
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":   "Compra eliminada correctamente",
+		"compra_id": payload.CompraID,
+	})
+}
