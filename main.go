@@ -27,11 +27,14 @@ func main() {
 		}
 	}
 
-	FRONT_END = os.Getenv("FRONT_END")
-	FRONT_END2 := os.Getenv("FRONT_END2")
+	FRONT_END := os.Getenv("FRONT_END")
+	if FRONT_END == "" {
+		FRONT_END = "http://localhost:5173"
+	}
 
-	if FRONT_END == "" || FRONT_END2 == "" {
-		log.Fatal("FRONT_END o FRONT_END2 no están definidas en el archivo .env")
+	FRONT_END2 := os.Getenv("FRONT_END2")
+	if FRONT_END2 == "" {
+		FRONT_END2 = "https://equipos-front.vercel.app"
 	}
 
 	// Inicializar Supabase
