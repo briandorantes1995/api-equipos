@@ -106,7 +106,7 @@ func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 
 	// Respuesta
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message":         "Movimiento registrado y inventario actualizado",
+		"message":         "Movimiento registrado e inventario actualizado",
 		"articulo_id":     payload.ArticuloID,
 		"cantidad_actual": cantidadActual,
 	})
@@ -336,7 +336,7 @@ func handleEliminarMovimiento(w http.ResponseWriter, r *http.Request) {
 
 	// Respuesta
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message":         "Movimiento eliminado y inventario ajustado",
+		"message":         "Movimiento eliminado e inventario ajustado",
 		"articulo_id":     original.ArticuloID,
 		"cantidad_actual": cantidadActual,
 	})
