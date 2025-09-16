@@ -12,7 +12,6 @@ type ArticleResponse struct {
 	Nombre          string  `json:"nombre,omitempty"`
 	PrecioVenta     float64 `json:"precio_venta,omitempty"`
 	Proveedor       string  `json:"proveedor,omitempty"`
-	SKU             string  `json:"sku,omitempty"`
 	CategoriaNombre string  `json:"categoria_nombre,omitempty"`
 }
 
@@ -23,7 +22,6 @@ type InventarioArticulo struct {
 	Costo               float64 `json:"costo"`
 	Proveedor           string  `json:"proveedor"`
 	CodigoBarras        string  `json:"codigo_barras"`
-	SKU                 string  `json:"sku"`
 	CantidadActual      float64 `json:"cantidad_actual"`
 	UltimaActualizacion string  `json:"ultima_actualizacion"`
 }
