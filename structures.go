@@ -25,6 +25,7 @@ type InventarioArticulo struct {
 	CodigoBarras        string  `json:"codigo_barras"`
 	CantidadActual      float64 `json:"cantidad_actual"`
 	UltimaActualizacion string  `json:"ultima_actualizacion"`
+	Marca               string  `json:"marca,omitempty"`
 }
 
 type InventarioMovimientoArticulo struct {
