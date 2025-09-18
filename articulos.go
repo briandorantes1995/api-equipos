@@ -49,20 +49,18 @@ func handleGetArticulos(w http.ResponseWriter, r *http.Request) {
 	var articlesResponse []ArticleResponse
 	for _, articleRaw := range articlesRaw {
 		var article ArticleResponse
-		// Marshal y Unmarshal para convertir map[string]interface{} a ArticleResponse
-		// Esto es un truco para mapear los campos automáticamente
 		articleBytes, _ := json.Marshal(articleRaw)
 		json.Unmarshal(articleBytes, &article)
 
 		// Añadir el nombre de la categoría
-		if catID, ok := articleRaw["categoria_id"].(float64); ok { // Supabase devuelve IDs como float64
+		if catID, ok := articleRaw["categoria_id"].(float64); ok {
 			if categoryName, found := categoryMap[int(catID)]; found {
 				article.CategoriaNombre = categoryName
 			} else {
-				article.CategoriaNombre = "Categoría Desconocida" // O un valor por defecto
+				article.CategoriaNombre = "Categoría Desconocida"
 			}
 		} else {
-			article.CategoriaNombre = "Sin Categoría" // Si categoria_id no es un número
+			article.CategoriaNombre = "Sin Categoría"
 		}
 		articlesResponse = append(articlesResponse, article)
 	}

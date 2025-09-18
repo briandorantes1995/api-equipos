@@ -13,6 +13,7 @@ type ArticleResponse struct {
 	PrecioVenta     float64 `json:"precio_venta,omitempty"`
 	Proveedor       string  `json:"proveedor,omitempty"`
 	CategoriaNombre string  `json:"categoria_nombre,omitempty"`
+	Marca           string  `json:"marca,omitempty"`
 }
 
 type InventarioArticulo struct {
