@@ -39,7 +39,7 @@ func main() {
 
 	// Inicializar Supabase
 	supabaseUrl := os.Getenv("SUPABASE_URL")
-	supabaseKey := os.Getenv("SUPABASE_KEY")
+	supabaseKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
 	supabaseClient = supabase.CreateClient(supabaseUrl, supabaseKey)
 
 	router := http.NewServeMux()
