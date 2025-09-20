@@ -77,8 +77,5 @@ type TomaInventario struct {
 	Estado          string `json:"estado,omitempty"`
 	CategoriaID     *int   `json:"categoria_id,omitempty"`
 	CategoriaNombre string `json:"categoria_nombre,omitempty"`
-	Categoria       *struct {
-		ID     int    `json:"id"`
-		Nombre string `json:"nombre"`
-	} `json:"categorias,omitempty"`
+	Observaciones   string `json:"observaciones,omitempty"`
 }

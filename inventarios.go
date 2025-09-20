@@ -48,54 +48,23 @@ func handleObtenerInventarios(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Validación de token y permisos
-	ctxToken := r.Context().Value(jwtmiddleware.ContextKey{})
-	if ctxToken == nil {
-		http.Error(w, `{"message":"Token inválido"}`, http.StatusUnauthorized)
-		return
-	}
-
-	token, ok := ctxToken.(*validator.ValidatedClaims)
-	if !ok {
-		http.Error(w, `{"message":"Token inválido"}`, http.StatusUnauthorized)
-		return
-	}
-
-	claims, ok := token.CustomClaims.(*middleware.CustomClaims)
-	if !ok || !claims.HasPermission("read") {
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("read") {
 		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
 		return
 	}
 
 	var inventarios []TomaInventario
 
-	// Consulta usando join soportado por PostgREST
 	err := supabaseClient.DB.
-		From("tomafisica").
-		Select(`
-            id,
-            folio,
-            fecha_inicio,
-            fecha_fin,
-            usuario_auth0_sub,
-            usuario_correo,
-            estado,
-            categoria_id,
-            categorias(id,nombre)
-        `).
+		From("tomafisica_view").
+		Select("*").
 		Execute(&inventarios)
 
 	if err != nil {
 		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
-	}
-
-	// Mapear nombre de categoría al campo plano
-	for i := range inventarios {
-		if inventarios[i].Categoria != nil {
-			inventarios[i].CategoriaNombre = inventarios[i].Categoria.Nombre
-		} else {
-			inventarios[i].CategoriaNombre = "Todas"
-		}
 	}
 
 	// Retornar JSON
