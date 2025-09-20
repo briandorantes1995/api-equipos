@@ -48,28 +48,40 @@ func handleObtenerInventarios(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Validación de token y permisos
-	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
-	claims := token.CustomClaims.(*middleware.CustomClaims)
-	if !claims.HasPermission("read") {
+	ctxToken := r.Context().Value(jwtmiddleware.ContextKey{})
+	if ctxToken == nil {
+		http.Error(w, `{"message":"Token inválido"}`, http.StatusUnauthorized)
+		return
+	}
+
+	token, ok := ctxToken.(*validator.ValidatedClaims)
+	if !ok {
+		http.Error(w, `{"message":"Token inválido"}`, http.StatusUnauthorized)
+		return
+	}
+
+	claims, ok := token.CustomClaims.(*middleware.CustomClaims)
+	if !ok || !claims.HasPermission("read") {
 		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
 		return
 	}
 
 	var inventarios []TomaInventario
 
+	// Consulta usando join soportado por PostgREST
 	err := supabaseClient.DB.
 		From("tomafisica").
 		Select(`
-			id,
-			folio,
-			fecha_inicio,
-			fecha_fin,
-			usuario_auth0_sub,
-			usuario_correo,
-			estado,
-			categoria_id,
-			categorias!inner(nombre)
-		`).
+            id,
+            folio,
+            fecha_inicio,
+            fecha_fin,
+            usuario_auth0_sub,
+            usuario_correo,
+            estado,
+            categoria_id,
+            categorias(id,nombre)
+        `).
 		Execute(&inventarios)
 
 	if err != nil {
@@ -77,13 +89,18 @@ func handleObtenerInventarios(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mapear el nombre de la categoría si existe
-	for i, inv := range inventarios {
-		if inv.CategoriaID != nil {
-			inventarios[i].CategoriaNombre = inv.CategoriaNombre
+	// Mapear nombre de categoría al campo plano
+	for i := range inventarios {
+		if inventarios[i].Categoria != nil {
+			inventarios[i].CategoriaNombre = inventarios[i].Categoria.Nombre
 		} else {
 			inventarios[i].CategoriaNombre = "Todas"
 		}
+	}
+
+	// Retornar JSON
+	if inventarios == nil {
+		inventarios = []TomaInventario{}
 	}
 
 	json.NewEncoder(w).Encode(inventarios)
