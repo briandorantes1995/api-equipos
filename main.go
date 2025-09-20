@@ -98,6 +98,7 @@ func main() {
 
 	// Inventario
 	router.Handle("/api/inventario", middleware.EnsureValidToken()(http.HandlerFunc(handleReporteInventario)))
+	router.Handle("/api/inventario/obtener_tomas", middleware.EnsureValidToken()(http.HandlerFunc(handleObtenerInventarios)))
 
 	// Movimientos
 	router.Handle("/api/movimientos/registrar", middleware.EnsureValidToken()(http.HandlerFunc(handleRegistrarMovimiento)))

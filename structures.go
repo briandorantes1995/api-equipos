@@ -66,3 +66,16 @@ type MovimientoConNombre struct {
 type CategoryDetail struct {
 	Nombre string `json:"nombre,omitempty"`
 }
+
+type TomaInventario struct {
+	ID              int    `json:"id,omitempty"`
+	Folio           int    `json:"folio,omitempty"`
+	FechaInicio     string `json:"fecha_inicio,omitempty"`
+	FechaFin        string `json:"fecha_fin,omitempty"`
+	UsuarioAuth0Sub string `json:"usuario_auth0_sub,omitempty"`
+	UsuarioCorreo   string `json:"usuario_correo,omitempty"`
+	Estado          string `json:"estado,omitempty"`
+	CategoriaID     *int   `json:"categoria_id,omitempty"`
+	CategoriaNombre string `json:"categoria_nombre,omitempty"`
+	Observaciones   string `json:"observaciones,omitempty"`
+}
