@@ -58,7 +58,7 @@ func handleObtenerInventarios(w http.ResponseWriter, r *http.Request) {
 	var inventarios []TomaInventario
 
 	err := supabaseClient.DB.
-		From("TomaFisica").
+		From("tomafisica").
 		Select(`
 			id,
 			folio,
