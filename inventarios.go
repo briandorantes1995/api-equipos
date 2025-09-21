@@ -140,10 +140,17 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 
 	detalles := []map[string]interface{}{}
 	for _, a := range articulos {
-		categoriaIDArt := a["categoria_id"]
-		if payload.CategoriaID != nil && categoriaIDArt != *payload.CategoriaID {
-			continue // saltar artículos de otra categoría
+		categoriaIDArtFloat, ok := a["categoria_id"].(float64)
+		if !ok {
+			continue // si no es numérico, saltar
 		}
+		categoriaIDArt := int(categoriaIDArtFloat)
+
+		// Comparar con la categoría seleccionada
+		if payload.CategoriaID != nil && categoriaIDArt != *payload.CategoriaID {
+			continue
+		}
+
 		detalles = append(detalles, map[string]interface{}{
 			"toma_id":          tomaID,
 			"articulo_id":      a["articulo_id"],
