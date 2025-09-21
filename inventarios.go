@@ -76,7 +76,7 @@ func handleObtenerInventarios(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(inventarios)
 }
 
-// Handler para /api/inventario/crear_toma (POST)
+// Crear toma de inventario físico
 func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
@@ -95,10 +95,9 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2️⃣ Obtener claims del usuario autenticado
+	// 2️⃣ Validar permisos del usuario
 	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
 	claims := token.CustomClaims.(*middleware.CustomClaims)
-
 	if !claims.HasPermission("create") {
 		http.Error(w, `{"message":"Permiso denegado"}`, http.StatusForbidden)
 		return
@@ -126,39 +125,70 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 	tomaID := results[0]["id"].(float64)
 	folio := results[0]["folio"].(float64)
 
-	// 4️⃣ Insertar los detalles de inventario
-	// Obtener artículos según categoría o todos
+	// 4️⃣ Obtener artículos
 	var articulos []map[string]interface{}
-	err = supabaseClient.DB.
-		From("inventarios").
-		Select("*").
-		Execute(&articulos)
+	err = supabaseClient.DB.From("articulos").Select("*").Execute(&articulos)
+	if err != nil {
+		http.Error(w, `{"error":"Error al obtener artículos: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// 5️⃣ Obtener inventarios
+	var inventarios []map[string]interface{}
+	err = supabaseClient.DB.From("inventarios").Select("*").Execute(&inventarios)
 	if err != nil {
 		http.Error(w, `{"error":"Error al obtener inventarios: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
 
+	// 6️⃣ Crear un mapa de cantidad actual por articulo_id
+	cantidadMap := map[int]float64{}
+	for _, inv := range inventarios {
+		if idFloat, ok := inv["articulo_id"].(float64); ok {
+			id := int(idFloat)
+			if cant, ok := inv["cantidad_actual"].(float64); ok {
+				cantidadMap[id] = cant
+			}
+		}
+	}
+
+	// 7️⃣ Crear los detalles de inventario
 	detalles := []map[string]interface{}{}
 	for _, a := range articulos {
+		// Verificar categoría
 		categoriaIDArt := 0
 		if a["categoria_id"] != nil {
 			if floatVal, ok := a["categoria_id"].(float64); ok {
 				categoriaIDArt = int(floatVal)
 			}
 		}
-
 		if payload.CategoriaID != nil && categoriaIDArt != *payload.CategoriaID {
 			continue
 		}
 
+		// ID del artículo
+		articuloID := 0
+		if a["id"] != nil {
+			if floatVal, ok := a["id"].(float64); ok {
+				articuloID = int(floatVal)
+			}
+		}
+
+		// Cantidad teórica desde inventarios
+		cantidadTeorica := 0.0
+		if cant, ok := cantidadMap[articuloID]; ok {
+			cantidadTeorica = cant
+		}
+
 		detalles = append(detalles, map[string]interface{}{
 			"toma_id":          tomaID,
-			"articulo_id":      a["articulo_id"],
-			"cantidad_teorica": a["cantidad_actual"],
+			"articulo_id":      articuloID,
+			"cantidad_teorica": cantidadTeorica,
 			"cantidad_real":    0,
 		})
 	}
 
+	// 8️⃣ Insertar detalles en la base de datos
 	if len(detalles) > 0 {
 		err = supabaseClient.DB.From("tomafisicadetalle").Insert(detalles).Execute(nil)
 		if err != nil {
@@ -167,7 +197,7 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 5️⃣ Retornar JSON con toma creada
+	// 9️⃣ Retornar JSON con la toma creada
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"toma_id": tomaID,
 		"folio":   folio,
