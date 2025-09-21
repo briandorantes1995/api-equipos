@@ -238,7 +238,7 @@ func handleObtenerDetalleToma(w http.ResponseWriter, r *http.Request) {
 
 	var detalles []map[string]interface{}
 	err = supabaseClient.DB.
-		From("tomafisica_view").
+		From("tomafisicadetalle_view").
 		Select("*").
 		Eq("toma_id", idValue).
 		Execute(&detalles)
