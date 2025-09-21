@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"equiposmedicos/middleware"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware/v2"
@@ -202,4 +204,52 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 		"toma_id": tomaID,
 		"folio":   folio,
 	})
+}
+
+func handleObtenerDetalleToma(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("read") {
+		http.Error(w, `{"message":"Permiso denegado"}`, http.StatusForbidden)
+		return
+	}
+
+	// Extraer id desde la URL (/api/inventarios/detalles_tomas/{id})
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 5 {
+		http.Error(w, `{"error":"ID no proporcionado"}`, http.StatusBadRequest)
+		return
+	}
+	idStr := parts[4]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, `{"error":"ID inválido"}`, http.StatusBadRequest)
+		return
+	}
+
+	idValue := strconv.Itoa(id)
+
+	var detalles []map[string]interface{}
+	err = supabaseClient.DB.
+		From("tomafisica_view").
+		Select("*").
+		Eq("toma_id", idValue).
+		Execute(&detalles)
+	if err != nil {
+		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if detalles == nil {
+		detalles = []map[string]interface{}{}
+	}
+
+	json.NewEncoder(w).Encode(detalles)
 }
