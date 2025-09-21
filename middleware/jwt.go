@@ -21,6 +21,8 @@ type CustomClaims struct {
 	Scope       string   `json:"scope"`
 	Permissions []string `json:"permissions"`
 	Email       string   `json:"email,omitempty"`
+
+	validator.RegisteredClaims
 }
 
 // Validate does nothing for this example, but we need
