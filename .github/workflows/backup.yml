@@ -10,11 +10,10 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Install PostgreSQL 17 client and sshpass
+      - name: Install PostgreSQL 17 client
         run: |
-          # Instalar dependencias necesarias
           sudo apt-get update
-          sudo apt-get install -y wget gnupg lsb-release sshpass
+          sudo apt-get install -y wget gnupg lsb-release
 
           # Descargar y guardar la llave GPG de PostgreSQL
           wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
@@ -22,10 +21,7 @@ jobs:
           # Agregar el repositorio oficial de PostgreSQL usando la llave
           echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
 
-          # Actualizar lista de paquetes
           sudo apt-get update
-
-          # Instalar PostgreSQL 17 client
           sudo apt-get install -y postgresql-client-17
 
       - name: Run pg_dump using Session Pooler
@@ -40,7 +36,6 @@ jobs:
             --no-owner --no-privileges > "$FILE"
           echo "Backup saved to $FILE"
           echo "BACKUP_FILE=$FILE" >> $GITHUB_ENV
-          echo "Backup file is: $BACKUP_FILE"
 
       - name: Upload artifact to GitHub
         uses: actions/upload-artifact@v4
@@ -48,11 +43,4 @@ jobs:
           name: supabase-backup
           path: "*.sql"
           retention-days: 30
-
-      - name: Copy backup to Synology NAS via QuickConnect
-        run: |
-          echo "Copying backup to NAS via QuickConnect..."
-          sshpass -p "${{ secrets.NAS_PASSWORD }}" scp -o StrictHostKeyChecking=no "$BACKUP_FILE" "${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/backups/supabase/"
-
-
 
