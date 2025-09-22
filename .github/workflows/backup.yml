@@ -37,7 +37,7 @@ jobs:
             -U ${{ secrets.DB_USER }} \
             -d ${{ secrets.DB_NAME }} \
             -p 5432 \
-            --no-owner --no-privileges > $FILE
+            --no-owner --no-privileges > "$FILE"
           echo "Backup saved to $FILE"
           echo "BACKUP_FILE=$FILE" >> $GITHUB_ENV
 
@@ -50,9 +50,8 @@ jobs:
 
       - name: Copy backup to Synology NAS via QuickConnect
         run: |
-          sshpass -p "${{ secrets.NAS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
-            "$BACKUP_FILE" \
-            ${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/backups/supabase/
+          sshpass -p "${{ secrets.NAS_PASSWORD }}" scp -o StrictHostKeyChecking=no "$BACKUP_FILE" ${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/backups/supabase/
+
 
 
 
