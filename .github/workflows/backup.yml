@@ -10,12 +10,19 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Install dependencies
-        run: sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-             wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-             sudo apt-get update
-             sudo apt-get install -y postgresql-client-17
+      - name: Install PostgreSQL 17 client
+        run: |
+          # Agregar el repositorio oficial de PostgreSQL
+          echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
 
+          # Agregar la llave del repositorio
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+
+          # Actualizar lista de paquetes
+          sudo apt-get update
+
+          # Instalar PostgreSQL 17 client
+          sudo apt-get install -y postgresql-client-17 sshpass
 
       - name: Run pg_dump using Session Pooler
         run: |
@@ -42,3 +49,4 @@ jobs:
       #     sshpass -p "${{ secrets.NAS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
       #       "$BACKUP_FILE" \
       #       ${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/backups/supabase/
+
