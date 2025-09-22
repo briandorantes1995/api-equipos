@@ -12,7 +12,7 @@ import (
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 )
 
-// Handler para registrar movimientos y actualizar inventario
+// Handler para registrar movimientos y actualizar inventario de articulos
 func handleRegistrarMovimiento(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
