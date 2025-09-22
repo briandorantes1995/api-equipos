@@ -347,3 +347,82 @@ func handleCancelarToma(w http.ResponseWriter, r *http.Request) {
 		"message": "Toma física cancelada correctamente",
 	})
 }
+
+// handleFinalizarToma actualiza los detalles y cierra el folio de la toma física.
+func handleFinalizarToma(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validacion de token y permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("update") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Decodificar el payload
+	var detalles []map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&detalles); err != nil {
+		http.Error(w, `{"error":"Error al decodificar JSON: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	if len(detalles) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{"message": "No se proporcionaron detalles para finalizar."})
+		return
+	}
+
+	for _, d := range detalles {
+		detalleID, ok := d["detalle_id"].(float64)
+		if !ok {
+			continue
+		}
+		updates := map[string]interface{}{"cantidad_real": d["cantidad_real"]}
+		err := supabaseClient.DB.From("tomafisicadetalle").Update(updates).Eq("id", strconv.Itoa(int(detalleID))).Execute(nil)
+		if err != nil {
+			http.Error(w, `{"error":"Error al actualizar detalle `+strconv.Itoa(int(detalleID))+`: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+	}
+
+	firstDetalleID := int(detalles[0]["detalle_id"].(float64))
+
+	var tomaDetalles []struct {
+		TomaID int `json:"toma_id"`
+	}
+
+	// 👇 CAMBIO CLAVE: .Limit(1) AHORA VA ANTES de .Eq()
+	err := supabaseClient.DB.
+		From("tomafisicadetalle").
+		Select("toma_id").
+		Limit(1).
+		Eq("id", strconv.Itoa(firstDetalleID)).
+		Execute(&tomaDetalles)
+
+	if err != nil {
+		http.Error(w, `{"error":"Error al buscar el folio de la toma: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if len(tomaDetalles) == 0 {
+		http.Error(w, `{"error":"No se pudo encontrar el folio de la toma para el detalle `+strconv.Itoa(firstDetalleID)+`"}`, http.StatusNotFound)
+		return
+	}
+
+	tomaID := tomaDetalles[0].TomaID
+
+	// 3. Cambiar el estado del folio principal a "cerrada" (sin cambios aquí)
+	err = supabaseClient.DB.From("tomafisica").Update(map[string]interface{}{"estado": "cerrada"}).Eq("id", strconv.Itoa(tomaID)).Execute(nil)
+	if err != nil {
+		http.Error(w, `{"error":"Error al cerrar el folio de la toma: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Toma física finalizada y cerrada correctamente",
+	})
+}

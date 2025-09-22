@@ -1,12 +1,11 @@
 package main
 
 import (
+	"equiposmedicos/middleware"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-
-	"equiposmedicos/middleware"
 
 	"github.com/joho/godotenv"
 	"github.com/nedpals/supabase-go"
@@ -102,6 +101,7 @@ func main() {
 	router.Handle("/api/inventario/crear_tomas", middleware.EnsureValidToken()(http.HandlerFunc(handleCrearTomaFisica)))
 	router.Handle("/api/inventario/guardar_tomas", middleware.EnsureValidToken()(http.HandlerFunc(handleGuardarTomaDetalle)))
 	router.Handle("/api/inventario/cancelar_tomas/", middleware.EnsureValidToken()(http.HandlerFunc(handleCancelarToma)))
+	router.Handle("/api/inventario/finalizar_tomas", middleware.EnsureValidToken()(http.HandlerFunc(handleFinalizarToma)))
 	router.Handle("/api/inventario/detalles_tomas/", middleware.EnsureValidToken()(http.HandlerFunc(handleObtenerDetalleToma)))
 
 	// Movimientos
