@@ -40,6 +40,7 @@ jobs:
             --no-owner --no-privileges > "$FILE"
           echo "Backup saved to $FILE"
           echo "BACKUP_FILE=$FILE" >> $GITHUB_ENV
+          echo "Backup file is: $BACKUP_FILE"
 
       - name: Upload artifact to GitHub
         uses: actions/upload-artifact@v4
@@ -50,8 +51,8 @@ jobs:
 
       - name: Copy backup to Synology NAS via QuickConnect
         run: |
-          sshpass -p "${{ secrets.NAS_PASSWORD }}" scp -o StrictHostKeyChecking=no "$BACKUP_FILE" ${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/backups/supabase/
-
+          echo "Copying backup to NAS via QuickConnect..."
+          sshpass -p "${{ secrets.NAS_PASSWORD }}" scp -o StrictHostKeyChecking=no "$BACKUP_FILE" "${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/backups/supabase/"
 
 
 
