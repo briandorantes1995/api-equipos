@@ -13,7 +13,7 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
-      - name: Run pg_dump
+      - name: Run pg_dump using Session Pooler
         run: |
           DATE=$(date +"%Y-%m-%d_%H-%M-%S")
           FILE="supabase_backup_$DATE.sql"
@@ -31,6 +31,7 @@ jobs:
         with:
           name: supabase-backup
           path: "*.sql"
+          retention-days: 30
 
       # - name: Copy backup to Synology NAS
       #   run: |
