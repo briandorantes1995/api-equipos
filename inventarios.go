@@ -87,7 +87,7 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	// 1️⃣ Decodificar payload
+	//Decodificar payload
 	var payload struct {
 		CategoriaID *int `json:"categoria_id,omitempty"`
 	}
@@ -97,7 +97,7 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2️⃣ Validar permisos del usuario
+	//Validar permisos del usuario
 	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
 	claims := token.CustomClaims.(*middleware.CustomClaims)
 	if !claims.HasPermission("create") {
@@ -108,7 +108,7 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 	usuarioSub := claims.Subject
 	usuarioCorreo := claims.Email
 
-	// 3️⃣ Insertar la toma física
+	//Insertar la toma física
 	toma := map[string]interface{}{
 		"fecha_inicio":      time.Now(),
 		"estado":            "abierta",
@@ -127,7 +127,7 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 	tomaID := results[0]["id"].(float64)
 	folio := results[0]["folio"].(float64)
 
-	// 4️⃣ Obtener artículos
+	//Obtener artículos
 	var articulos []map[string]interface{}
 	err = supabaseClient.DB.From("articulos").Select("*").Execute(&articulos)
 	if err != nil {
@@ -135,7 +135,7 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 5️⃣ Obtener inventarios
+	//Obtener inventarios
 	var inventarios []map[string]interface{}
 	err = supabaseClient.DB.From("inventarios").Select("*").Execute(&inventarios)
 	if err != nil {
@@ -143,7 +143,7 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 6️⃣ Crear un mapa de cantidad actual por articulo_id
+	//Crear un mapa de cantidad actual por articulo_id
 	cantidadMap := map[int]float64{}
 	for _, inv := range inventarios {
 		if idFloat, ok := inv["articulo_id"].(float64); ok {
@@ -154,7 +154,7 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 7️⃣ Crear los detalles de inventario
+	//Crear los detalles de inventario
 	detalles := []map[string]interface{}{}
 	for _, a := range articulos {
 		// Verificar categoría
@@ -190,7 +190,7 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// 8️⃣ Insertar detalles en la base de datos
+	//Insertar detalles en la base de datos
 	if len(detalles) > 0 {
 		err = supabaseClient.DB.From("tomafisicadetalle").Insert(detalles).Execute(nil)
 		if err != nil {
@@ -199,7 +199,7 @@ func handleCrearTomaFisica(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 9️⃣ Retornar JSON con la toma creada
+	//Retornar JSON con la toma creada
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"toma_id": tomaID,
 		"folio":   folio,
@@ -395,7 +395,6 @@ func handleFinalizarToma(w http.ResponseWriter, r *http.Request) {
 		TomaID int `json:"toma_id"`
 	}
 
-	// 👇 CAMBIO CLAVE: .Limit(1) AHORA VA ANTES de .Eq()
 	err := supabaseClient.DB.
 		From("tomafisicadetalle").
 		Select("toma_id").
@@ -415,8 +414,12 @@ func handleFinalizarToma(w http.ResponseWriter, r *http.Request) {
 
 	tomaID := tomaDetalles[0].TomaID
 
-	// 3. Cambiar el estado del folio principal a "cerrada" (sin cambios aquí)
-	err = supabaseClient.DB.From("tomafisica").Update(map[string]interface{}{"estado": "cerrada"}).Eq("id", strconv.Itoa(tomaID)).Execute(nil)
+	// Cambia el estado y actualiza la fecha de finalización
+	updates := map[string]interface{}{
+		"estado":    "cerrada",
+		"fecha_fin": time.Now(),
+	}
+	err = supabaseClient.DB.From("tomafisica").Update(updates).Eq("id", strconv.Itoa(tomaID)).Execute(nil)
 	if err != nil {
 		http.Error(w, `{"error":"Error al cerrar el folio de la toma: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
