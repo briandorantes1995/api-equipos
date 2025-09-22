@@ -12,17 +12,21 @@ jobs:
     steps:
       - name: Install PostgreSQL 17 client
         run: |
-          # Agregar el repositorio oficial de PostgreSQL
-          echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          # Instalar dependencias necesarias
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release sshpass
 
-          # Agregar la llave del repositorio
+          # Descargar y guardar la llave GPG de PostgreSQL
           wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+
+          # Agregar el repositorio oficial de PostgreSQL usando la llave
+          echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
 
           # Actualizar lista de paquetes
           sudo apt-get update
 
           # Instalar PostgreSQL 17 client
-          sudo apt-get install -y postgresql-client-17 sshpass
+          sudo apt-get install -y postgresql-client-17
 
       - name: Run pg_dump using Session Pooler
         run: |
@@ -49,4 +53,5 @@ jobs:
       #     sshpass -p "${{ secrets.NAS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
       #       "$BACKUP_FILE" \
       #       ${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/backups/supabase/
+
 
