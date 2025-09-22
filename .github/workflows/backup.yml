@@ -1,0 +1,39 @@
+name: Supabase Backup
+
+on:
+  schedule:
+    # 3 AM y 3 PM CDMX → 9:00 y 21:00 UTC
+    - cron: "0 9,21 * * *"
+  workflow_dispatch:      # Permite correrlo manualmente
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Run pg_dump
+        run: |
+          DATE=$(date +"%Y-%m-%d_%H-%M-%S")
+          FILE="supabase_backup_$DATE.sql"
+          PGPASSWORD=${{ secrets.DB_PASSWORD }} pg_dump \
+            -h ${{ secrets.DB_HOST }} \
+            -U ${{ secrets.DB_USER }} \
+            -d ${{ secrets.DB_NAME }} \
+            -p 5432 \
+            --no-owner --no-privileges > $FILE
+          echo "Backup saved to $FILE"
+          echo "BACKUP_FILE=$FILE" >> $GITHUB_ENV
+
+      - name: Upload artifact to GitHub
+        uses: actions/upload-artifact@v3
+        with:
+          name: supabase-backup
+          path: "*.sql"
+
+      # - name: Copy backup to Synology NAS
+      #   run: |
+      #     sshpass -p "${{ secrets.NAS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
+      #       "$BACKUP_FILE" \
+      #       ${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/backups/supabase/
