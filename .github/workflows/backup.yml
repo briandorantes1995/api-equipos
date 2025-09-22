@@ -10,7 +10,7 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Install PostgreSQL 17 client
+      - name: Install PostgreSQL 17 client and sshpass
         run: |
           # Instalar dependencias necesarias
           sudo apt-get update
@@ -48,10 +48,11 @@ jobs:
           path: "*.sql"
           retention-days: 30
 
-      # - name: Copy backup to Synology NAS
-      #   run: |
-      #     sshpass -p "${{ secrets.NAS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
-      #       "$BACKUP_FILE" \
-      #       ${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/backups/supabase/
+      - name: Copy backup to Synology NAS via QuickConnect
+        run: |
+          sshpass -p "${{ secrets.NAS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
+            "$BACKUP_FILE" \
+            ${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/backups/supabase/
+
 
 
