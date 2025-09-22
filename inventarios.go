@@ -253,3 +253,97 @@ func handleObtenerDetalleToma(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(detalles)
 }
+
+// Handler para guardar los detalles de una toma física (conteo real)
+func handleGuardarTomaDetalle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validación de token y permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("update") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Decodificar payload
+	var detalles []map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&detalles); err != nil {
+		http.Error(w, `{"error":"Error al decodificar JSON: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	for _, d := range detalles {
+		detalleID, ok := d["detalle_id"].(float64)
+		if !ok {
+			continue
+		}
+
+		updates := map[string]interface{}{
+			"cantidad_real": d["cantidad_real"],
+		}
+
+		err := supabaseClient.DB.
+			From("tomafisicadetalle").
+			Update(updates).
+			Eq("id", strconv.Itoa(int(detalleID))).
+			Execute(nil)
+
+		if err != nil {
+			http.Error(w, `{"error":"Error al actualizar detalle: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Detalles de toma actualizados correctamente",
+	})
+}
+
+// Handler para cancelar (eliminar) una toma física completa
+func handleCancelarToma(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validación de token y permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("delete") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Obtener ID desde URL
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 5 {
+		http.Error(w, `{"error":"ID no proporcionado"}`, http.StatusBadRequest)
+		return
+	}
+
+	idStr := parts[4]
+
+	// Eliminar toma física
+	err := supabaseClient.DB.
+		From("tomafisica").
+		Delete().
+		Eq("id", idStr).
+		Execute(nil)
+
+	if err != nil {
+		http.Error(w, `{"error":"Error al eliminar toma: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Toma física cancelada correctamente",
+	})
+}
