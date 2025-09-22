@@ -27,7 +27,7 @@ jobs:
           echo "BACKUP_FILE=$FILE" >> $GITHUB_ENV
 
       - name: Upload artifact to GitHub
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: supabase-backup
           path: "*.sql"
