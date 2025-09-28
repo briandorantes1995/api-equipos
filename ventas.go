@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"equiposmedicos/middleware"
 	"net/http"
+	"strconv"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware/v2"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
@@ -95,4 +96,72 @@ func handleRegistrarVenta(w http.ResponseWriter, r *http.Request) {
 		"venta_id": ventaID,
 		"total":    total,
 	})
+}
+
+// Retorna un resumen de todas las ventas registradas
+func handleObtenerVentasResumen(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validación de permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("read") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Consultar la vista de resumen de ventas
+	var ventasResumen []map[string]interface{}
+	if err := supabaseClient.DB.From("vista_ventas_resumen").Select("*").Execute(&ventasResumen); err != nil {
+		http.Error(w, `{"error":"Error al obtener ventas: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(ventasResumen)
+}
+
+// Retorna el detalle de una venta específica
+func handleDetalleVenta(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validar token JWT
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("read") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Obtener venta_id de query params
+	ventaIDStr := r.URL.Query().Get("venta_id")
+	if ventaIDStr == "" {
+		http.Error(w, `{"error":"Debe especificar venta_id"}`, http.StatusBadRequest)
+		return
+	}
+	ventaID, err := strconv.Atoi(ventaIDStr)
+	if err != nil {
+		http.Error(w, `{"error":"venta_id inválido"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Consultar la vista de detalle de venta con filtro por venta_id
+	var detalles []map[string]interface{}
+	if err := supabaseClient.DB.
+		From("vista_ventas_detalle").
+		Select("*").
+		Eq("venta_id", strconv.Itoa(ventaID)).
+		Execute(&detalles); err != nil {
+		http.Error(w, `{"error":"Error al obtener detalle de venta: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(detalles)
 }
