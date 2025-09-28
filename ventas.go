@@ -116,7 +116,7 @@ func handleObtenerVentasResumen(w http.ResponseWriter, r *http.Request) {
 
 	// Consultar la vista de resumen de ventas
 	var ventasResumen []map[string]interface{}
-	if err := supabaseClient.DB.From("vista_ventas_resumen").Select("*").Execute(&ventasResumen); err != nil {
+	if err := supabaseClient.DB.From("ventas_resumen").Select("*").Execute(&ventasResumen); err != nil {
 		http.Error(w, `{"error":"Error al obtener ventas: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
@@ -155,7 +155,7 @@ func handleDetalleVenta(w http.ResponseWriter, r *http.Request) {
 	// Consultar la vista de detalle de venta con filtro por venta_id
 	var detalles []map[string]interface{}
 	if err := supabaseClient.DB.
-		From("vista_ventas_detalle").
+		From("ventas_detalle").
 		Select("*").
 		Eq("venta_id", strconv.Itoa(ventaID)).
 		Execute(&detalles); err != nil {
