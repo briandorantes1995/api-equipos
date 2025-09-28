@@ -29,7 +29,7 @@ func handleGetArticulos(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Obtener todas las categorías
 	var categoriesRaw []map[string]interface{}
-	err = supabaseClient.DB.From("categorias").Select("id,nombre").Execute(&categoriesRaw)
+	err = supabaseClient.DB.From("categorias").Select("id,nombre").Eq("estado", "activo").Execute(&categoriesRaw)
 	if err != nil {
 		http.Error(w, `{"error":"Error al obtener categorías: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
@@ -373,7 +373,7 @@ func handleCambiarEstadoArticulo(w http.ResponseWriter, r *http.Request) {
 	// Leer payload
 	var payload struct {
 		ArticuloID int    `json:"articulo_id"`
-		Estado     string `json:"estado"` // "activo" o "inactivo"
+		Estado     string `json:"estado"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
