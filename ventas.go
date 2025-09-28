@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"equiposmedicos/middleware"
 	"net/http"
-	"time"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware/v2"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
@@ -17,6 +16,7 @@ func handleRegistrarVenta(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 
+	// Validar permisos
 	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
 	claims := token.CustomClaims.(*middleware.CustomClaims)
 	if !claims.HasPermission("create") {
@@ -24,6 +24,7 @@ func handleRegistrarVenta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parsear payload
 	var payload VentaPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
@@ -35,6 +36,12 @@ func handleRegistrarVenta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Calcular total
+	total := 0.0
+	for _, item := range payload.Articulos {
+		total += item.PrecioUnitario * float64(item.Cantidad)
+	}
+
 	// Insertar venta principal
 	venta := map[string]interface{}{
 		"cliente_nombre":       payload.ClienteNombre,
@@ -44,6 +51,7 @@ func handleRegistrarVenta(w http.ResponseWriter, r *http.Request) {
 		"cliente_correo":       payload.ClienteCorreo,
 		"requiere_factura":     payload.RequiereFactura,
 		"notas":                payload.Notas,
+		"total":                total,
 	}
 
 	var ventaResult []map[string]interface{}
@@ -62,32 +70,29 @@ func handleRegistrarVenta(w http.ResponseWriter, r *http.Request) {
 			"cantidad":        item.Cantidad,
 			"precio_unitario": item.PrecioUnitario,
 		}
-		if err := supabaseClient.DB.From("venta_detalle").Insert(detalle).Execute(nil); err != nil {
+		if err := supabaseClient.DB.From("ventas_detalle").Insert(detalle).Execute(nil); err != nil {
 			http.Error(w, `{"error":"Error al insertar detalle: `+err.Error()+`"}`, http.StatusInternalServerError)
 			return
 		}
 	}
 
-	// Insertar pagos, si los hay
+	// Insertar pagos (fecha se genera automáticamente)
 	for _, pago := range payload.Pagos {
-		fecha := pago.FechaPago
-		if fecha == "" {
-			fecha = time.Now().Format("2006-01-02 15:04:05")
-		}
 		pagoMap := map[string]interface{}{
 			"venta_id":    ventaID,
 			"monto":       pago.Monto,
 			"metodo_pago": pago.MetodoPago,
-			"fecha_pago":  fecha,
 		}
-		if err := supabaseClient.DB.From("ventas_pagos").Insert(pagoMap).Execute(nil); err != nil {
+		if err := supabaseClient.DB.From("pagos").Insert(pagoMap).Execute(nil); err != nil {
 			http.Error(w, `{"error":"Error al insertar pago: `+err.Error()+`"}`, http.StatusInternalServerError)
 			return
 		}
 	}
 
+	// Respuesta exitosa
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message":  "Venta registrada correctamente",
 		"venta_id": ventaID,
+		"total":    total,
 	})
 }
