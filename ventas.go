@@ -165,3 +165,48 @@ func handleDetalleVenta(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(detalles)
 }
+
+// Eliminar Venta
+func handleEliminarVenta(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validar permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("delete") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Payload con venta_id
+	var payload struct {
+		VentaID int `json:"venta_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+	if payload.VentaID == 0 {
+		http.Error(w, `{"error":"Debe indicar venta_id"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Eliminar la venta
+	if err := supabaseClient.DB.From("ventas").
+		Delete().
+		Eq("id", strconv.Itoa(payload.VentaID)).
+		Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al eliminar venta: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Respuesta
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":  "Venta eliminada correctamente",
+		"venta_id": payload.VentaID,
+	})
+}
