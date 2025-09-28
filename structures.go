@@ -14,6 +14,7 @@ type ArticleResponse struct {
 	Proveedor       string  `json:"proveedor,omitempty"`
 	CategoriaNombre string  `json:"categoria_nombre,omitempty"`
 	Marca           string  `json:"marca,omitempty"`
+	Estado          string  `json:"estado,omitempty"`
 }
 
 type InventarioArticulo struct {
@@ -26,6 +27,7 @@ type InventarioArticulo struct {
 	CantidadActual      float64 `json:"cantidad_actual"`
 	UltimaActualizacion string  `json:"ultima_actualizacion"`
 	Marca               string  `json:"marca,omitempty"`
+	Estado              string  `json:"estado,omitempty"`
 }
 
 type InventarioMovimientoArticulo struct {
