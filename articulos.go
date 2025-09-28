@@ -21,7 +21,7 @@ func handleGetArticulos(w http.ResponseWriter, r *http.Request) {
 
 	// 1. Obtener todos los artículos
 	var articlesRaw []map[string]interface{}
-	err := supabaseClient.DB.From("articulos").Select("*").Execute(&articlesRaw)
+	err := supabaseClient.DB.From("articulos").Select("*").Eq("estado", "activo").Execute(&articlesRaw)
 	if err != nil {
 		http.Error(w, `{"error":"Error al obtener artículos: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
@@ -29,7 +29,7 @@ func handleGetArticulos(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Obtener todas las categorías
 	var categoriesRaw []map[string]interface{}
-	err = supabaseClient.DB.From("categorias").Select("id,nombre").Eq("estado", "activo").Execute(&categoriesRaw)
+	err = supabaseClient.DB.From("categorias").Select("id,nombre").Execute(&categoriesRaw)
 	if err != nil {
 		http.Error(w, `{"error":"Error al obtener categorías: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
