@@ -79,3 +79,26 @@ type TomaInventario struct {
 	CategoriaNombre string `json:"categoria_nombre,omitempty"`
 	Observaciones   string `json:"observaciones,omitempty"`
 }
+
+type VentaDetalle struct {
+	ArticuloID     int     `json:"articulo_id"`
+	Cantidad       int     `json:"cantidad"`
+	PrecioUnitario float64 `json:"precio_unitario"`
+}
+
+type Pago struct {
+	Monto      float64 `json:"monto"`
+	MetodoPago string  `json:"metodo_pago"`
+	FechaPago  string  `json:"fecha"`
+}
+type VentaPayload struct {
+	ClienteNombre      string         `json:"cliente_nombre"`
+	ClienteRazonSocial string         `json:"cliente_razon_social"`
+	ClienteDireccion   string         `json:"cliente_direccion"`
+	ClienteTelefono    string         `json:"cliente_telefono"`
+	ClienteCorreo      string         `json:"cliente_correo"`
+	RequiereFactura    bool           `json:"requiere_factura"`
+	Notas              string         `json:"notas,omitempty"`
+	Articulos          []VentaDetalle `json:"articulos"`
+	Pagos              []Pago         `json:"pagos,omitempty"`
+}
