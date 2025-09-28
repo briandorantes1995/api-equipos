@@ -88,6 +88,7 @@ func main() {
 	router.Handle("/api/articulos/agregar", middleware.EnsureValidToken()(http.HandlerFunc(handleAgregarArticulo)))
 	router.Handle("/api/articulos/actualizar/", middleware.EnsureValidToken()(http.HandlerFunc(handleActualizarArticulo)))
 	router.Handle("/api/articulos/eliminar/", middleware.EnsureValidToken()(http.HandlerFunc(handleEliminarArticulo)))
+	router.Handle("/api/articulos/estado/", middleware.EnsureValidToken()(http.HandlerFunc(handleCambiarEstadoArticulo)))
 
 	// Rutas de categorías
 	router.HandleFunc("/api/categorias", handleGetCategorias)

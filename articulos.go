@@ -352,3 +352,55 @@ func handleBuscarArticulos(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonResp)
 }
+
+// Cambiar estado de artículo (activo/inactivo)
+func handleCambiarEstadoArticulo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validar permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("update") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Leer payload
+	var payload struct {
+		ArticuloID int    `json:"articulo_id"`
+		Estado     string `json:"estado"` // "activo" o "inactivo"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	if payload.ArticuloID == 0 || (payload.Estado != "activo" && payload.Estado != "inactivo") {
+		http.Error(w, `{"error":"ID o estado inválido"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Actualizar estado en la tabla articulos
+	var results []map[string]interface{}
+	err := supabaseClient.DB.From("articulos").
+		Update(map[string]interface{}{"estado": payload.Estado}).
+		Eq("id", strconv.Itoa(payload.ArticuloID)).
+		Execute(&results)
+	if err != nil {
+		http.Error(w, `{"error":"Error al actualizar estado: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if len(results) > 0 {
+		json.NewEncoder(w).Encode(results[0])
+	} else {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "Estado actualizado correctamente, pero no se devolvieron datos.",
+		})
+	}
+}
