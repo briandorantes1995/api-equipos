@@ -155,7 +155,7 @@ func handleDetalleVenta(w http.ResponseWriter, r *http.Request) {
 	// Consultar la vista de detalle de venta con filtro por venta_id
 	var detalles []map[string]interface{}
 	if err := supabaseClient.DB.
-		From("ventas_detalle").
+		From("ventas_detalle_completo").
 		Select("*").
 		Eq("venta_id", strconv.Itoa(ventaID)).
 		Execute(&detalles); err != nil {
