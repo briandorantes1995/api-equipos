@@ -210,3 +210,95 @@ func handleEliminarVenta(w http.ResponseWriter, r *http.Request) {
 		"venta_id": payload.VentaID,
 	})
 }
+
+func handleEditarVenta(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, `{"message":"Método no permitido"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// Validar permisos
+	token := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	claims := token.CustomClaims.(*middleware.CustomClaims)
+	if !claims.HasPermission("update") {
+		http.Error(w, `{"message":"Insufficient scope."}`, http.StatusForbidden)
+		return
+	}
+
+	// Payload
+	var payload struct {
+		VentaID int `json:"venta_id"`
+		Cliente struct {
+			Nombre      string `json:"nombre"`
+			RazonSocial string `json:"razon_social"`
+			Direccion   string `json:"direccion"`
+			Telefono    string `json:"telefono"`
+			Correo      string `json:"correo"`
+		} `json:"cliente"`
+		Notas     string         `json:"notas,omitempty"`
+		Articulos []VentaDetalle `json:"articulos"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error":"JSON inválido: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	if payload.VentaID == 0 {
+		http.Error(w, `{"error":"Debe indicar venta_id"}`, http.StatusBadRequest)
+		return
+	}
+	if len(payload.Articulos) == 0 {
+		http.Error(w, `{"error":"Debe enviar al menos un artículo"}`, http.StatusBadRequest)
+		return
+	}
+
+	ventaIDStr := strconv.Itoa(payload.VentaID)
+
+	updateVenta := map[string]interface{}{
+		"cliente_nombre":       payload.Cliente.Nombre,
+		"cliente_razon_social": payload.Cliente.RazonSocial,
+		"cliente_direccion":    payload.Cliente.Direccion,
+		"cliente_telefono":     payload.Cliente.Telefono,
+		"cliente_correo":       payload.Cliente.Correo,
+		"notas":                payload.Notas,
+	}
+
+	if err := supabaseClient.DB.From("ventas").
+		Update(updateVenta).
+		Eq("id", ventaIDStr).
+		Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al actualizar venta: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Borrar detalles anteriores
+	if err := supabaseClient.DB.From("ventas_detalle").
+		Delete().
+		Eq("venta_id", ventaIDStr).
+		Execute(nil); err != nil {
+		http.Error(w, `{"error":"Error al eliminar detalles: `+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Insertar nuevos detalles
+	for _, item := range payload.Articulos {
+		detalle := map[string]interface{}{
+			"venta_id":        payload.VentaID,
+			"articulo_id":     item.ArticuloID,
+			"cantidad":        item.Cantidad,
+			"precio_unitario": item.PrecioUnitario,
+		}
+		if err := supabaseClient.DB.From("ventas_detalle").Insert(detalle).Execute(nil); err != nil {
+			http.Error(w, `{"error":"Error al insertar detalle: `+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Responder éxito
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":  "Venta editada correctamente",
+		"venta_id": payload.VentaID,
+	})
+}

@@ -93,6 +93,7 @@ type Pago struct {
 	MetodoPago string  `json:"metodo_pago"`
 	FechaPago  string  `json:"fecha"`
 }
+
 type VentaPayload struct {
 	ClienteNombre      string         `json:"cliente_nombre"`
 	ClienteRazonSocial string         `json:"cliente_razon_social"`

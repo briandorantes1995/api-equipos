@@ -123,6 +123,12 @@ func main() {
 	router.Handle("/api/ventas", middleware.EnsureValidToken()(http.HandlerFunc(handleObtenerVentasResumen)))
 	router.Handle("/api/ventas/", middleware.EnsureValidToken()(http.HandlerFunc(handleDetalleVenta)))
 	router.Handle("/api/ventas/eliminar", middleware.EnsureValidToken()(http.HandlerFunc(handleEliminarVenta)))
+	router.Handle("/api/ventas/editar", middleware.EnsureValidToken()(http.HandlerFunc(handleEditarVenta)))
+
+	// Pagos
+	router.Handle("/api/pagos", middleware.EnsureValidToken()(http.HandlerFunc(handleObtenerPagos)))
+	router.Handle("/api/pagos/venta/", middleware.EnsureValidToken()(http.HandlerFunc(handleObtenerPagosId)))
+	router.Handle("/api/pagos/registrar", middleware.EnsureValidToken()(http.HandlerFunc(handleAgregarPagos)))
 
 	fmt.Println("Servidor escuchando en http://0.0.0.0:3010")
 	if err := http.ListenAndServe("0.0.0.0:3010", corsHandler(router)); err != nil {
