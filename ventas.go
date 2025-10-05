@@ -228,16 +228,14 @@ func handleEditarVenta(w http.ResponseWriter, r *http.Request) {
 
 	// Payload
 	var payload struct {
-		VentaID int `json:"venta_id"`
-		Cliente struct {
-			Nombre      string `json:"nombre"`
-			RazonSocial string `json:"razon_social"`
-			Direccion   string `json:"direccion"`
-			Telefono    string `json:"telefono"`
-			Correo      string `json:"correo"`
-		} `json:"cliente"`
-		Notas     string         `json:"notas,omitempty"`
-		Articulos []VentaDetalle `json:"articulos"`
+		VentaID            int            `json:"venta_id"`
+		ClienteNombre      string         `json:"cliente_nombre"`
+		ClienteRazonSocial string         `json:"cliente_razon_social"`
+		ClienteDireccion   string         `json:"cliente_direccion"`
+		ClienteTelefono    string         `json:"cliente_telefono"`
+		ClienteCorreo      string         `json:"cliente_correo"`
+		Notas              string         `json:"notas,omitempty"`
+		Articulos          []VentaDetalle `json:"articulos"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -257,11 +255,11 @@ func handleEditarVenta(w http.ResponseWriter, r *http.Request) {
 	ventaIDStr := strconv.Itoa(payload.VentaID)
 
 	updateVenta := map[string]interface{}{
-		"cliente_nombre":       payload.Cliente.Nombre,
-		"cliente_razon_social": payload.Cliente.RazonSocial,
-		"cliente_direccion":    payload.Cliente.Direccion,
-		"cliente_telefono":     payload.Cliente.Telefono,
-		"cliente_correo":       payload.Cliente.Correo,
+		"cliente_nombre":       payload.ClienteNombre,
+		"cliente_razon_social": payload.ClienteRazonSocial,
+		"cliente_direccion":    payload.ClienteDireccion,
+		"cliente_telefono":     payload.ClienteTelefono,
+		"cliente_correo":       payload.ClienteCorreo,
 		"notas":                payload.Notas,
 	}
 
