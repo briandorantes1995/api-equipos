@@ -1,9 +1,9 @@
 name: Supabase Backup
 
 on:
-  schedule:
+ # schedule:
     # 3 AM y 3 PM CDMX → 9:00 y 21:00 UTC
-    - cron: "0 9,21 * * *"
+    #- cron: "0 9,21 * * *"
   workflow_dispatch:      # Permite correrlo manualmente
 
 jobs:
