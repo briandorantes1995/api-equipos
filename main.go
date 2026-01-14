@@ -33,7 +33,7 @@ func main() {
 
 	FRONT_END2 := os.Getenv("FRONT_END2")
 	if FRONT_END2 == "" {
-		FRONT_END2 = "https://equipos-front.vercel.app"
+		FRONT_END2 = "https://equiposmedicosmty.com"
 	}
 
 	// Inicializar Supabase
