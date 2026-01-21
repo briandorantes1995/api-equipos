@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"equiposmedicos/middleware"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -457,7 +458,10 @@ func handleGenerateCatalogoPDF(w http.ResponseWriter, r *http.Request) {
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errorBody, _ := io.ReadAll(resp.Body)
-		http.Error(w, "PDFShift error: "+string(errorBody), http.StatusInternalServerError)
+		log.Println("PDFSHIFT ERROR:", string(errorBody))
+
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(errorBody)
 		return
 	}
 
