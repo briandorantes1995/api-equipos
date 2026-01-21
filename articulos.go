@@ -443,8 +443,8 @@ func handleGenerateCatalogoPDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.SetBasicAuth(apiKey, "")
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", apiKey)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
