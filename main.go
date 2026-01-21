@@ -84,6 +84,7 @@ func main() {
 	// Rutas de artículos
 	router.HandleFunc("/api/articulos", handleGetArticulos)
 	router.HandleFunc("/api/articulos/", handleGetArticuloPorID)
+	router.HandleFunc("/api/articulos/catalogo-pdf", handleGenerateCatalogoPDF)
 	router.HandleFunc("/api/articulos/buscar", handleBuscarArticulos)
 	router.Handle("/api/articulos/agregar", middleware.EnsureValidToken()(http.HandlerFunc(handleAgregarArticulo)))
 	router.Handle("/api/articulos/actualizar/", middleware.EnsureValidToken()(http.HandlerFunc(handleActualizarArticulo)))

@@ -1,15 +1,38 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"equiposmedicos/middleware"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/chromedp"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware/v2"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 )
+
+func generatePDF(ctx context.Context) ([]byte, error) {
+	pdf, _, err := page.PrintToPDF().
+		WithPaperWidth(8.27).
+		WithPaperHeight(11.69).
+		WithMarginTop(0.4).
+		WithMarginBottom(0.4).
+		WithMarginLeft(0.4).
+		WithMarginRight(0.4).
+		WithPrintBackground(true).
+		Do(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return pdf, nil
+}
 
 // Handler para /api/articulos (GET)
 func handleGetArticulos(w http.ResponseWriter, r *http.Request) {
@@ -403,4 +426,42 @@ func handleCambiarEstadoArticulo(w http.ResponseWriter, r *http.Request) {
 			"message": "Estado actualizado correctamente, pero no se devolvieron datos.",
 		})
 	}
+}
+
+func handleGenerateCatalogoPDF(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+
+	ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	var pdf []byte
+
+	err := chromedp.Run(ctx,
+		chromedp.Navigate("https://equiposmedicosmty.com/articulos/catalogo"),
+
+		// Espera a que React cargue
+		chromedp.WaitVisible(".grid", chromedp.ByQuery),
+
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			var err error
+			pdf, err = generatePDF(ctx)
+			return err
+		}),
+	)
+
+	if err != nil {
+		http.Error(w, "Error generando PDF: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `attachment; filename="catalogo_equipos_medicos.pdf"`)
+	w.WriteHeader(http.StatusOK)
+	w.Write(pdf)
 }
