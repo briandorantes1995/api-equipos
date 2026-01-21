@@ -426,7 +426,7 @@ func handleGenerateCatalogoPDF(w http.ResponseWriter, r *http.Request) {
 		"source":    "https://equiposmedicosmty.com/articulos/catalogo",
 		"landscape": false,
 		"use_print": true,
-		"wait_for":  ".catologo-grid", // espera a que cargue React
+		"wait_for":  ".catalogo-grid", // espera a que cargue React
 		"delay":     3000,             // espera 1s extra
 		"margin":    "10mm",
 	}
