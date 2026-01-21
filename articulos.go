@@ -1,38 +1,18 @@
 package main
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
 	"equiposmedicos/middleware"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/chromedp/cdproto/page"
-	"github.com/chromedp/chromedp"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware/v2"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 )
-
-func generatePDF(ctx context.Context) ([]byte, error) {
-	pdf, _, err := page.PrintToPDF().
-		WithPaperWidth(8.27).
-		WithPaperHeight(11.69).
-		WithMarginTop(0.4).
-		WithMarginBottom(0.4).
-		WithMarginLeft(0.4).
-		WithMarginRight(0.4).
-		WithPrintBackground(true).
-		Do(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return pdf, nil
-}
 
 // Handler para /api/articulos (GET)
 func handleGetArticulos(w http.ResponseWriter, r *http.Request) {
@@ -434,34 +414,58 @@ func handleGenerateCatalogoPDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := chromedp.NewContext(context.Background())
-	defer cancel()
-
-	ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-
-	var pdf []byte
-
-	err := chromedp.Run(ctx,
-		chromedp.Navigate("https://equiposmedicosmty.com/articulos/catalogo"),
-
-		// Espera a que React cargue
-		chromedp.WaitVisible(".grid", chromedp.ByQuery),
-
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			var err error
-			pdf, err = generatePDF(ctx)
-			return err
-		}),
-	)
-
-	if err != nil {
-		http.Error(w, "Error generando PDF: "+err.Error(), http.StatusInternalServerError)
+	// 👉 API KEY desde env (Fly secrets)
+	apiKey := os.Getenv("PDFSHIFT_API_KEY")
+	if apiKey == "" {
+		http.Error(w, "PDFShift API key no configurada", http.StatusInternalServerError)
 		return
 	}
 
+	// 👉 URL REAL del catálogo (sin navbar si ya lo manejas con CSS)
+	payload := map[string]interface{}{
+		"source":    "https://equiposmedicosmty.com/articulos/catalogo",
+		"landscape": false,
+		"use_print": true,
+		"wait_for":  ".grid", // espera a que cargue React
+		"margin":    "10mm",
+	}
+
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest(
+		"POST",
+		"https://api.pdfshift.io/v3/convert/pdf",
+		bytes.NewBuffer(body),
+	)
+	if err != nil {
+		http.Error(w, "Error creando request", http.StatusInternalServerError)
+		return
+	}
+
+	req.SetBasicAuth(apiKey, "")
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "Error llamando PDFShift", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		errorBody, _ := io.ReadAll(resp.Body)
+		http.Error(
+			w,
+			"PDFShift error: "+string(errorBody),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	// 👉 Stream directo del PDF
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", `attachment; filename="catalogo_equipos_medicos.pdf"`)
-	w.WriteHeader(http.StatusOK)
-	w.Write(pdf)
+
+	io.Copy(w, resp.Body)
 }
