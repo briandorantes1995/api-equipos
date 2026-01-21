@@ -421,13 +421,11 @@ func handleGenerateCatalogoPDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 👉 URL REAL del catálogo (sin navbar si ya lo manejas con CSS)
 	payload := map[string]interface{}{
 		"source":    "https://equiposmedicosmty.com/articulos/catalogo",
-		"landscape": false,
 		"use_print": true,
-		"wait_for":  ".catalogo-grid", // espera a que cargue React
-		"delay":     3000,             // espera 1s extra
+		"wait_for":  "body", // 🔑 SIEMPRE existe
+		"delay":     6000,   // 🔑 tiempo real para React + API + imágenes
 		"margin":    "10mm",
 	}
 
