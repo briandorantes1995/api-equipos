@@ -414,7 +414,6 @@ func handleGenerateCatalogoPDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 👉 API KEY desde env (Fly secrets)
 	apiKey := os.Getenv("PDFSHIFT_API_KEY")
 	if apiKey == "" {
 		http.Error(w, "PDFShift API key no configurada", http.StatusInternalServerError)
@@ -424,12 +423,15 @@ func handleGenerateCatalogoPDF(w http.ResponseWriter, r *http.Request) {
 	payload := map[string]interface{}{
 		"source":    "https://equiposmedicosmty.com/articulos/catalogo",
 		"use_print": true,
-		"wait_for":  "body", // 🔑 SIEMPRE existe
-		"delay":     6000,   // 🔑 tiempo real para React + API + imágenes
+		"delay":     8000, // 🔑 SPA + imágenes
 		"margin":    "10mm",
 	}
 
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		http.Error(w, "Error creando payload", http.StatusInternalServerError)
+		return
+	}
 
 	req, err := http.NewRequest(
 		"POST",
@@ -441,8 +443,9 @@ func handleGenerateCatalogoPDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	// 🔑 AUTENTICACIÓN CORRECTA
 	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -452,17 +455,12 @@ func handleGenerateCatalogoPDF(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errorBody, _ := io.ReadAll(resp.Body)
-		http.Error(
-			w,
-			"PDFShift error: "+string(errorBody),
-			http.StatusInternalServerError,
-		)
+		http.Error(w, "PDFShift error: "+string(errorBody), http.StatusInternalServerError)
 		return
 	}
 
-	// 👉 Stream directo del PDF
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", `attachment; filename="catalogo_equipos_medicos.pdf"`)
 
